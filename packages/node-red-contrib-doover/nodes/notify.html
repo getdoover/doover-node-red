@@ -1,0 +1,64 @@
+<!--
+  doover-notify — editor template.
+
+  Category "Doover", brand colour, bell icon. Connection selector plus an
+  "also record an activity-log entry" option.
+-->
+
+<script type="text/javascript">
+  RED.nodes.registerType("doover-notify", {
+    category: "Doover",
+    color: "#8ecae6",
+    defaults: {
+      name: { value: "" },
+      connection: { value: "", type: "doover-connection", required: true },
+      recordActivity: { value: false }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: "font-awesome/fa-bell",
+    align: "right",
+    paletteLabel: "notify",
+    label: function () {
+      return this.name || "doover notify";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-notify">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-globe"></i> Connection</label>
+    <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-recordActivity" style="width:auto">
+      <input type="checkbox" id="node-input-recordActivity" style="display:inline-block; width:auto; vertical-align:top">
+      Also record an activity-log entry
+    </label>
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-notify">
+  <p>Sends a user notification / alert banner in the Doover UI.</p>
+  <p>Publishes <code>msg.payload</code> (as text) to the
+    <code>significantEvent</code> channel as
+    <code>{ "notification_msg": &lt;text&gt; }</code>.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">string</span></dt>
+    <dd>the notification message text (non-strings are stringified).</dd>
+  </dl>
+  <h3>Options</h3>
+  <ul>
+    <li><b>Also record an activity-log entry</b> — additionally writes the same
+      text to the <code>activity_log</code> channel as
+      <code>{ "action_string": &lt;text&gt; }</code>.</li>
+  </ul>
+</script>

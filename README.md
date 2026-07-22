@@ -1,85 +1,178 @@
+# Doover × Node-RED
 
-# Doover App Template
+<img src="https://doover.com/wp-content/uploads/Doover-Logo-Landscape-Navy-padded-small.png" alt="Doover" style="max-width: 300px;">
 
-<img src="https://doover.com/wp-content/uploads/Doover-Logo-Landscape-Navy-padded-small.png" alt="App Icon" style="max-width: 300px;">
+**Node-RED as a first-class citizen of the Doover IoT platform** — a Doover
+device app that runs the Node-RED runtime on a Doovit, plus a family of Doover
+nodes (a palette package) that read and write Doover tags, channels,
+notifications and UI both **on a Doover device** and **anywhere else** (an
+existing Node-RED install talking to the Doover cloud).
 
-**A ready template for a Doover Application**
+The design goal is end-customer ease of use: zero-config on a Doovit,
+dropdown-driven configuration everywhere, and a ten-minute path from
+"install the app" to "flow visible in the Doover UI".
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/getdoover/app-template/blob/main/LICENSE)
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/getdoover/app-template?quickstart=1)
+> 📋 The authoritative design is in **[`PLAN.md`](PLAN.md)** — product principles,
+> the full node list, phases, and open questions. This README is the orientation
+> map; `PLAN.md` is the source of truth.
 
-[Getting Started](#-getting-started) • [Configuration](#configuration) • [Developer](https://github.com/getdoover/app-template/blob/main/DEVELOPMENT.md) • [Need Help?](#need-help)
+---
 
-<br/>
+## What's in this repo
 
-## 📖 Overview
+This is a hybrid repo: a standard Doover Python device app **at the root** (so
+Doover app CI finds `Dockerfile` + `doover_config.json` where it expects them),
+with the JavaScript palette and transport packages living alongside it as npm
+workspaces.
 
-A ready-to-use template for building Doover applications. This template provides the essential
-structure and configuration needed to quickly get started with app development on the Doover
-platform, using [pydoover](https://github.com/getdoover/pydoover) 1.0.
+```
+doover-node-red/
+├── Dockerfile                    # FROM nodered/node-red + Doover conventions
+├── doover_config.json            # app definition, config schema, ui schema
+├── pyproject.toml                # supervisor (pydoover app)
+├── src/                          # supervisor: settings templating, tunnel, UI, health
+├── settings/                     # Node-RED settings.js template, theme wiring (TBD)
+├── packages/
+│   ├── nodered-core/             # @doover/nodered-core — transport + tag layer (no Node-RED dep)
+│   │   └── protos/               # vendored from pydoover/protos (sync script)
+│   ├── node-red-contrib-doover/  # the palette: nodes + editor HTML + examples
+│   ├── node-red-auth-doover/     # adminAuth Passport strategy        (Phase 2)
+│   ├── node-red-theme-doover/    # editor theme                        (Phase 2)
+│   └── node-red-storage-doover/  # channel-backed flow storage module  (Phase 3)
+├── examples/                     # importable example flows (mirrored into the palette pkg)
+├── docs/                         # this doc set (see docs/development.md, docs/reference/)
+└── .github/workflows/            # CI: lint, test, build multi-arch image, npm publish
+```
 
-Use this repository as a starting point: fork it (or use the "Use this template" button),
-rename the `app_template` package, and replace the sample config, tags, UI, and state machine
-with your own.
+---
 
-<br/>
+## Architecture at a glance
 
-## 🚀 Getting Started
+```
+                     ┌────────────────────────────────────────────┐
+                     │  Node-RED runtime (container / anywhere)    │
+  Palette nodes ────►│  node-red-contrib-doover                    │
+                     │        │                                    │
+                     │        ▼                                    │
+                     │  @doover/nodered-core  (transport layer)    │
+                     │   ├── LocalTransport  (gRPC, on-device)     │
+                     │   └── CloudTransport  (REST + WSS, remote)  │
+                     └────────┬──────────────────────┬─────────────┘
+                              │                       │
+                 device agent gRPC socket        api.doover.com
+                 (same Doovit)                   (+ gateway WSS)
+```
 
-### How to Use
+- **`@doover/nodered-core`** is a plain, Node-RED-independent library exposing one
+  `DooverTransport` interface with two implementations: `LocalTransport` (gRPC to
+  the on-device agent, protos vendored from pydoover) and `CloudTransport` (REST +
+  WebSocket to the Doover cloud, reusing `doover-js`). A **tag layer** rides on top
+  of either transport — tags are a convenience over the `tag_values` channel
+  aggregate, exactly as in pydoover.
+- **`node-red-contrib-doover`** is the palette. Every message node references a
+  shared **`doover-connection`** config node (à la `mqtt-broker`); the *only*
+  difference between on-device and remote is which connection a node points at.
+  Same nodes everywhere.
+- The **device app** (repo root) is a normal Doover/pydoover app that wraps the
+  official `nodered/node-red` image, materialises `settings.js` from deployment
+  config, manages the editor tunnel, declares the app's Doover UI, and reports
+  runtime health as tags.
 
-#### Quick Start Guide
+See `PLAN.md` §2 for the transport contract and §3 for the full node catalogue.
 
-Click the **Open in GitHub Codespaces** badge above to launch a ready-to-go development environment with:
-- Python 3.13, uv, and all project dependencies
-- Doover CLI (`doover`) pre-installed — you'll be prompted to log in on first open
-- Claude Code with [doover-skills](https://github.com/getdoover/doover-skills) pre-configured
+---
 
-> **Claude Code:** You'll be prompted for your `ANTHROPIC_API_KEY` when creating a Codespace.
-> Get a key at [console.anthropic.com](https://console.anthropic.com/settings/keys).
-> To skip this prompt in future, save it as a permanent secret at
-> [github.com/settings/codespaces](https://github.com/settings/codespaces).
+## Quickstart
 
-This Doover App can be managed via the Doover CLI, and installed quickly onto devices through the Doover platform.
+### On a Doovit (the zero-config path)
 
-### Configuration
+1. Install the **Node-RED for Doover** app onto a device from the Doover app store.
+2. Open the app in the Doover UI and use the **Open Editor** action — it activates
+   a tunnel to the on-device Node-RED editor and surfaces the link.
+3. Drag a **doover tag in** node onto the canvas. The local connection is
+   auto-detected (agent id + app key read from the container env) — no credentials,
+   no endpoints. Wire it to a **doover notify** node and **Deploy**.
+4. The result is visible in the Doover UI. Try importing one of the
+   [`examples/`](examples) flows to go faster.
 
-Configuration fields are declared in [`src/app_template/app_config.py`](src/app_template/app_config.py).
-The sample schema ships with:
+### Standalone (an existing Node-RED install)
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Digital Outputs Enabled** | Toggle whether the app drives digital outputs | `true` |
-| **A Funny Message** | Free-text message used by the sample alert button | *(required)* |
-| **Simulator App Key** | App key of the simulator supplying `random_value` | *(required)* |
+1. In your own Node-RED, open **Manage palette → Install** and add
+   `node-red-contrib-doover` (once published).
+2. Add a **doover-connection** config node, set its type to **Doover Cloud**, paste
+   a scoped API token, and pick your agent from the dropdown.
+3. Your existing flows can now read and write Doover tags and channels.
 
-Replace these with your own fields, then regenerate `doover_config.json` with `uv run export-config`.
+Platform I/O and UI nodes are **local-only**; they error clearly when wired to a
+cloud connection.
 
-<br/>
+---
 
-## 🔗 Integrations
+## Packages
 
-### Tags
+| Package | Name | Purpose | Phase |
+|---------|------|---------|-------|
+| `packages/nodered-core` | `@doover/nodered-core` | Transport interface + Local/Cloud transports + tag layer. No Node-RED dependency. | 0 |
+| `packages/node-red-contrib-doover` | `node-red-contrib-doover` | The palette — tag / channel / aggregate / notify nodes today; UI + hardware nodes later. Unscoped name for Palette-Manager discoverability. | 1+ |
+| `packages/node-red-auth-doover` | `@doover/node-red-auth` | Node-RED adminAuth (Passport) strategy validating Doover credentials. | 2 |
+| `packages/node-red-theme-doover` | `@doover/node-red-theme-doover` | Doover editor theme. | 2 |
+| `packages/node-red-storage-doover` | `@doover/node-red-storage` | Channel-backed flow storage module (flows-as-config, fleet distribution). | 3 |
+| *(repo root)* | `app-template` → *Node-RED for Doover* | The pydoover supervisor + Dockerfile + Doover app config. | 1+ |
 
-The sample app publishes a few example tags via [`src/app_template/app_tags.py`](src/app_template/app_tags.py):
+The example flows are shipped **twice**: in
+[`packages/node-red-contrib-doover/examples/`](packages/node-red-contrib-doover/examples)
+(so they appear under Import → Examples in the editor) and mirrored at the repo
+root in [`examples/`](examples).
 
-| Tag | Description |
-|-----|-------------|
-| **is_working** | Heartbeat — `true` while the main loop is running |
-| **uptime** | Seconds since the app started |
-| **battery_voltage** | Example numeric value sourced from the simulator |
-| **test_output** | Echoes text entered in the UI |
+---
 
-<br/>
+## Development setup
 
-### Need Help?
+Two toolchains, one repo.
 
-- 📧 Email: support@doover.com
+**JavaScript (palette + core)** — Node.js 24, npm 11, npm **workspaces**. Plain
+CommonJS, no TypeScript, no build step (JSDoc for types).
+
+```bash
+npm install            # installs all workspaces + dev deps
+npm test               # runs each workspace's tests (node --test / test-helper)
+```
+
+**Python (device app supervisor)** — [uv](https://docs.astral.sh/uv/) + pydoover 1.0.
+
+```bash
+uv run pytest tests -v          # run the Python test suite
+uv run export-config            # regenerate config_schema in doover_config.json
+uv run export-ui                # regenerate ui_schema (required to publish)
+doover app run                  # run the app + simulator locally via docker-compose
+```
+
+The full dev loop — running Node-RED locally with the palette linked, testing
+nodes, and the simulator story — is in **[`docs/development.md`](docs/development.md)**.
+Reference material for implementers is in
+[`docs/reference/`](docs/reference) (Node-RED node conventions, the gRPC contract,
+and the tags contract).
+
+---
+
+## Licence
+
+The device app at the repo root carries the standard Doover app-template
+**Apache License 2.0** ([`LICENSE`](LICENSE)). The JavaScript workspace packages
+declare **MIT** in their `package.json` (per `PLAN.md` §7 and the node-authoring
+conventions — the common choice for a publishable Node-RED palette). This split is
+intentional; keep new package `license` fields consistent with the package they
+live in.
+
+> **Node-RED** is a trademark of the **OpenJS Foundation**. This project embeds and
+> integrates with Node-RED but is not endorsed by or affiliated with the OpenJS
+> Foundation. App-store and package naming follows the safe "*<X> for Node-RED*" /
+> "*Node-RED for <X>*" pattern; see `PLAN.md` §9 (open question 5).
+
+---
+
+## Need help?
+
+- 📧 support@doover.com
 - 📖 [Doover Documentation](https://docs.doover.com)
-- 👨‍💻 [App Developer Documentation](https://github.com/getdoover/app-template/blob/main/DEVELOPMENT.md)
-
-<br/>
-
-## 📄 License
-
-This app is licensed under the [Apache License 2.0](https://github.com/getdoover/app-template/blob/main/LICENSE).
+- 📋 [`PLAN.md`](PLAN.md) — the project plan and open questions

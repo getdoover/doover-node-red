@@ -1,0 +1,191 @@
+<!--
+  doover-connection — editor template (config node).
+
+  Both modes are active:
+    - "This device (local)" is the default, zero-config connection — the detected
+      agent id / app key are shown read-only (fetched from the identity admin
+      endpoint). An optional advanced "Base URL" override points a standalone
+      Node-RED at a device's web API on the LAN (https://<device-ip>:49100).
+    - "Doover Cloud" reads/writes a remote device via the Doover cloud: API base
+      URL, target agent id, and an API token (stored as a Node-RED credential).
+-->
+
+<script type="text/javascript">
+  RED.nodes.registerType("doover-connection", {
+    category: "config",
+    defaults: {
+      name: { value: "" },
+      dooverType: { value: "local", required: true },
+      localBaseUrl: { value: "" },
+      apiBase: { value: "https://api.doover.com" },
+      agentId: { value: "" },
+    },
+    credentials: {
+      token: { type: "password" },
+    },
+    label: function () {
+      if (this.name) {
+        return this.name;
+      }
+      return this.dooverType === "cloud"
+        ? this.agentId || "Doover Cloud"
+        : "Local Device";
+    },
+    oneditprepare: function () {
+      const node = this;
+
+      function applyMode() {
+        const mode = $("#node-config-input-dooverType").val();
+        if (mode === "cloud") {
+          $(".doover-local-row").hide();
+          $(".doover-cloud-row").show();
+        } else {
+          $(".doover-cloud-row").hide();
+          $(".doover-local-row").show();
+        }
+      }
+
+      $("#node-config-input-dooverType").on("change", applyMode);
+      applyMode();
+
+      // Toggle the local advanced override open when it already has a value.
+      const $advanced = $(".doover-local-advanced");
+      const hasOverride = !!$("#node-config-input-localBaseUrl").val();
+      if (hasOverride) {
+        $advanced.show();
+      } else {
+        $advanced.hide();
+      }
+      $("#doover-local-advanced-toggle").on("click", function (e) {
+        e.preventDefault();
+        $advanced.toggle();
+      });
+
+      // Fetch the detected identity for the local connection (read-only).
+      const $agent = $("#doover-detected-agent");
+      const $app = $("#doover-detected-app");
+      $agent.text("checking…");
+      $app.text("checking…");
+      if (node.id) {
+        $.getJSON("doover-connection/" + node.id + "/identity")
+          .done(function (info) {
+            $agent.text(
+              info && info.agentId ? info.agentId : "(auto-detected on deploy)"
+            );
+            $app.text(
+              info && info.appKey ? info.appKey : "(auto-detected on deploy)"
+            );
+          })
+          .fail(function () {
+            $agent.text("(auto-detected on deploy)");
+            $app.text("(auto-detected on deploy)");
+          });
+      } else {
+        $agent.text("(auto-detected on deploy)");
+        $app.text("(auto-detected on deploy)");
+      }
+    },
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-connection">
+  <div class="form-row">
+    <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-config-input-name" placeholder="Local Device" />
+  </div>
+  <div class="form-row">
+    <label for="node-config-input-dooverType"><i class="fa fa-plug"></i> Type</label>
+    <select id="node-config-input-dooverType" style="width:70%">
+      <option value="local">This device (local)</option>
+      <option value="cloud">Doover Cloud</option>
+    </select>
+  </div>
+
+  <!-- Local (zero-config) — read-only detected identity -->
+  <div class="form-row doover-local-row">
+    <label><i class="fa fa-microchip"></i> Agent</label>
+    <span id="doover-detected-agent" style="color:#888">(auto-detected on deploy)</span>
+  </div>
+  <div class="form-row doover-local-row">
+    <label><i class="fa fa-cube"></i> App key</label>
+    <span id="doover-detected-app" style="color:#888">(auto-detected on deploy)</span>
+  </div>
+  <div class="form-row doover-local-row">
+    <p style="color:#888; font-size:0.85em; margin-left:105px">
+      No configuration needed — the device connection is detected from the
+      container environment (<code>APP_KEY</code>, <code>DDA_WEB_URI</code>).
+    </p>
+  </div>
+  <div class="form-row doover-local-row">
+    <p style="margin-left:105px">
+      <a href="#" id="doover-local-advanced-toggle" style="font-size:0.85em">
+        Advanced: override base URL…
+      </a>
+    </p>
+  </div>
+  <div class="form-row doover-local-row doover-local-advanced">
+    <label for="node-config-input-localBaseUrl"><i class="fa fa-globe"></i> Base URL</label>
+    <input
+      type="text"
+      id="node-config-input-localBaseUrl"
+      placeholder="https://<device-ip>:49100"
+    />
+  </div>
+  <div class="form-row doover-local-row doover-local-advanced">
+    <p style="color:#888; font-size:0.85em; margin-left:105px">
+      Leave blank on-device (uses <code>DDA_WEB_URI</code>, default
+      <code>127.0.0.1:49100</code>). Set it to point a standalone Node-RED at a
+      device's agent web API over the LAN, e.g.
+      <code>https://192.168.0.7:49100</code>.
+    </p>
+  </div>
+
+  <!-- Cloud -->
+  <div class="form-row doover-cloud-row">
+    <label for="node-config-input-apiBase"><i class="fa fa-globe"></i> API base</label>
+    <input type="text" id="node-config-input-apiBase" placeholder="https://api.doover.com" />
+  </div>
+  <div class="form-row doover-cloud-row">
+    <label for="node-config-input-agentId"><i class="fa fa-microchip"></i> Agent</label>
+    <input type="text" id="node-config-input-agentId" placeholder="agent id" />
+  </div>
+  <div class="form-row doover-cloud-row">
+    <label for="node-config-input-token"><i class="fa fa-key"></i> Token</label>
+    <input type="password" id="node-config-input-token" />
+  </div>
+  <div class="form-row doover-cloud-row">
+    <p style="color:#888; font-size:0.85em; margin-left:105px">
+      A long-lived Doover API token, stored securely as a Node-RED credential.
+      The agent id is the target device this connection reads/writes.
+    </p>
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-connection">
+  <p>
+    Shared connection to Doover that every Doover node references. Owns a single
+    transport, shared and reference-counted across the nodes that use it.
+  </p>
+  <h3>Types</h3>
+  <dl class="message-properties">
+    <dt>This device (local)</dt>
+    <dd>
+      Default, zero-config. Connects to the on-device agent web API, auto-detected
+      from the container environment (<code>APP_KEY</code>,
+      <code>DDA_WEB_URI</code> — default <code>127.0.0.1:49100</code>). The
+      detected agent id and app key are shown read-only.
+      <br /><br />
+      <b>Advanced — Base URL override.</b> Leave blank on a Doovit. To drive a
+      device from a <i>standalone</i> Node-RED on the same network, set the base
+      URL to that device's agent web API, e.g.
+      <code>https://192.168.0.7:49100</code>.
+    </dd>
+    <dt>Doover Cloud</dt>
+    <dd>
+      Reads/writes a remote device via the Doover cloud. Set the API base URL
+      (default <code>https://api.doover.com</code>), the target agent id, and an
+      API token. The token is stored as a Node-RED credential (encrypted), never
+      in the flow file.
+    </dd>
+  </dl>
+</script>

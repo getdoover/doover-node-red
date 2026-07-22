@@ -1,16 +1,16 @@
 {
-    "sample_application": {
+    "doover_node_red": {
         "key": "32134bbb-5278-43c0-a6ca-4046a5edeb9f",
-        "name": "sample_application",
-        "display_name": "Sample Application",
+        "name": "doover_node_red",
+        "display_name": "Node-RED",
         "type": "DEV",
         "visibility": "PUB",
-        "allow_many": true,
-        "description": "A template application for Doover",
+        "allow_many": false,
+        "description": "Run the Node-RED flow runtime on a Doover device. Wire tags, channels, notifications and hardware I/O into Node-RED flows, and surface them in the Doover UI.",
         "long_description": "README.md",
         "depends_on": [],
         "owner_org_key": "",
-        "image_name": "ghcr.io/getdoover/app-template:main",
+        "image_name": "ghcr.io/getdoover/doover-nodered:main",
         "container_registry_profile_key": "",
         "build_args": "--platform linux/amd64,linux/arm64",
         "config_schema": {
@@ -19,42 +19,143 @@
             "title": "$default",
             "type": "object",
             "properties": {
-                "digital_outputs_enabled": {
-                    "title": "Digital Outputs Enabled",
-                    "x-name": "digital_outputs_enabled",
+                "editor_enabled": {
+                    "title": "Editor Enabled",
+                    "x-name": "editor_enabled",
                     "x-hidden": false,
                     "type": [
                         "boolean",
                         "null"
                     ],
                     "x-required": false,
+                    "description": "Serve the Node-RED flow editor. Disable entirely for locked-down production devices \u2014 flows still run, but the editor is inaccessible.",
                     "default": true,
                     "x-position": 0
                 },
-                "a_funny_message": {
-                    "title": "A Funny Message",
-                    "x-name": "a_funny_message",
-                    "x-hidden": false,
-                    "type": "string",
-                    "x-required": true,
+                "editor_access": {
+                    "enum": [
+                        "doover-auth",
+                        "local-only"
+                    ],
+                    "title": "Editor Access",
+                    "x-name": "editor_access",
+                    "x-hidden": true,
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "EXPERIMENTAL / not yet implemented. How the editor is reached. 'doover-auth' exposes it via a Doover tunnel authenticated against Doover; 'local-only' keeps it bound to localhost with no tunnel. Hidden until the editor tunnel lands (currently has no effect).",
+                    "default": "doover-auth",
                     "x-position": 1
                 },
-                "simulator_app_key": {
-                    "title": "Simulator App Key",
-                    "x-name": "simulator_app_key",
+                "extra_palette_packages": {
+                    "title": "Extra Palette Packages",
+                    "x-name": "extra_palette_packages",
                     "x-hidden": false,
-                    "format": "doover-resource-application",
-                    "type": "string",
-                    "x-required": true,
-                    "description": "The app key for the simulator",
-                    "x-position": 2
+                    "type": [
+                        "array",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Additional npm package names to install at startup (e.g. 'node-red-contrib-modbus'). Installs need connectivity and add boot time.",
+                    "default": [],
+                    "x-position": 2,
+                    "items": {
+                        "title": "npm package",
+                        "x-name": "npm_package",
+                        "x-hidden": false,
+                        "type": "string",
+                        "x-required": true
+                    }
+                },
+                "flows_sync_enabled": {
+                    "title": "Flows Sync Enabled",
+                    "x-name": "flows_sync_enabled",
+                    "x-hidden": true,
+                    "type": [
+                        "boolean",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "EXPERIMENTAL / not yet implemented. Persist flows to the channel-backed storage so the cloud holds the canonical copy (history = versioning). Hidden until the storage module ships \u2014 flows currently always use local file storage regardless of this value.",
+                    "default": true,
+                    "x-position": 3
+                },
+                "flow_package": {
+                    "title": "Flow Package",
+                    "x-name": "flow_package",
+                    "x-hidden": false,
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Pinned flow package as 'name@version' (or 'latest') for fleet mode. Leave blank for dev mode (live per-deploy channel sync).",
+                    "default": "",
+                    "x-position": 4
+                },
+                "credential_secret": {
+                    "title": "Credential Secret",
+                    "x-name": "credential_secret",
+                    "x-hidden": true,
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Encryption key for flow credentials. Share across a fleet so a flow package's credentials decrypt on every device. Generated per-device if left blank.",
+                    "default": "",
+                    "x-position": 5
+                },
+                "flow_env": {
+                    "title": "Flow Environment Variables",
+                    "x-name": "flow_env",
+                    "x-hidden": false,
+                    "type": [
+                        "object",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "Key/value pairs exposed to flows as environment variables (referenced with ${VAR} in node config) \u2014 per-device values for shared flow packages.",
+                    "default": {},
+                    "x-position": 6,
+                    "properties": {},
+                    "additionalElements": true,
+                    "required": [],
+                    "x-collapsible": true,
+                    "x-defaultCollapsed": false
+                },
+                "memory_limit_mb": {
+                    "title": "Memory Limit (MB)",
+                    "x-name": "memory_limit_mb",
+                    "x-hidden": false,
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "V8 heap cap for Node-RED (applied via --max-old-space-size). This bounds the JS old-space heap, NOT total RSS (native buffers/pools are extra) \u2014 for a hard memory cap set an orchestrator/compose mem_limit. The runtime typically uses 120-250 MB RSS.",
+                    "default": 256,
+                    "x-position": 7,
+                    "minimum": 64
+                },
+                "timezone": {
+                    "title": "Timezone",
+                    "x-name": "timezone",
+                    "x-hidden": false,
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "description": "IANA timezone (e.g. 'Australia/Brisbane') for Node-RED scheduling nodes. Defaults to UTC.",
+                    "default": "UTC",
+                    "x-position": 8
                 }
             },
             "additionalElements": true,
-            "required": [
-                "a_funny_message",
-                "simulator_app_key"
-            ]
+            "required": []
         },
         "ui_schema": {
             "displayString": "$config.app().APP_DISPLAY_NAME",
@@ -66,133 +167,64 @@
             "type": "uiApplication",
             "name": "$config.app().APP_KEY",
             "children": {
-                "is_working": {
-                    "name": "is_working",
+                "runtime_state": {
+                    "name": "runtime_state",
                     "type": "uiVariable",
-                    "displayString": "We Working?",
+                    "displayString": "Runtime State",
                     "showActivity": true,
                     "position": 51,
                     "hidden": false,
-                    "varType": "bool",
-                    "currentValue": "$tag.app().is_working:boolean:false"
+                    "varType": "string",
+                    "currentValue": "$tag.app().runtime_state:string:\"starting\""
                 },
-                "uptime": {
-                    "name": "uptime",
+                "last_deploy_time": {
+                    "name": "last_deploy_time",
                     "type": "uiVariable",
-                    "displayString": "Uptime",
+                    "displayString": "Last Deploy (epoch)",
                     "showActivity": true,
                     "position": 52,
                     "hidden": false,
                     "varType": "float",
-                    "currentValue": "$tag.app().uptime:number:0"
+                    "currentValue": "$tag.app().last_deploy_time:number:0"
                 },
-                "send_alert": {
-                    "name": "send_alert",
-                    "type": "uiButton",
-                    "displayString": "Send message as alert",
-                    "position": 1,
+                "memory_mb": {
+                    "name": "memory_mb",
+                    "type": "uiVariable",
+                    "displayString": "Memory (MB)",
+                    "showActivity": true,
+                    "position": 53,
                     "hidden": false,
-                    "currentValue": "$cmds.app().send_alert",
-                    "appKey": "$config.app().APP_KEY"
+                    "varType": "float",
+                    "currentValue": "$tag.app().memory_mb:number:0",
+                    "decPrecision": 1
                 },
-                "test_message": {
-                    "name": "test_message",
-                    "type": "uiTextInput",
-                    "displayString": "Put in a message",
+                "restart_count": {
+                    "name": "restart_count",
+                    "type": "uiVariable",
+                    "displayString": "Restarts",
+                    "showActivity": true,
                     "position": 54,
                     "hidden": false,
-                    "currentValue": "$cmds.app().test_message",
-                    "appKey": "$config.app().APP_KEY",
-                    "isTextArea": false
+                    "varType": "float",
+                    "currentValue": "$tag.app().restart_count:number:0"
                 },
-                "test_output": {
-                    "name": "test_output",
-                    "type": "uiVariable",
-                    "displayString": "This is message we got",
-                    "showActivity": true,
-                    "position": 55,
+                "open_editor": {
+                    "name": "open_editor",
+                    "type": "uiButton",
+                    "displayString": "Open Editor",
+                    "position": 1,
                     "hidden": false,
-                    "varType": "string",
-                    "currentValue": "$tag.app().test_output:string:\"\""
+                    "currentValue": "$cmds.app().open_editor",
+                    "appKey": "$config.app().APP_KEY"
                 },
-                "battery": {
-                    "name": "battery",
-                    "type": "uiSubmodule",
-                    "displayString": "Battery Module",
+                "node_red": {
+                    "name": "node_red",
+                    "type": "uiContainer",
+                    "displayString": "Node-RED",
                     "showActivity": true,
-                    "position": 59,
+                    "position": 56,
                     "hidden": false,
-                    "children": {
-                        "voltage": {
-                            "name": "voltage",
-                            "type": "uiVariable",
-                            "displayString": "Battery Voltage",
-                            "showActivity": true,
-                            "position": 56,
-                            "hidden": false,
-                            "varType": "float",
-                            "currentValue": "$tag.app().battery_voltage:number:0",
-                            "decPrecision": 2,
-                            "ranges": [
-                                {
-                                    "min": 0,
-                                    "max": 10,
-                                    "colour": "red",
-                                    "show_on_graph": true,
-                                    "label": "Low"
-                                },
-                                {
-                                    "min": 10,
-                                    "max": 20,
-                                    "colour": "green",
-                                    "show_on_graph": true,
-                                    "label": "Normal"
-                                },
-                                {
-                                    "min": 20,
-                                    "max": 30,
-                                    "colour": "blue",
-                                    "show_on_graph": true,
-                                    "label": "High"
-                                }
-                            ]
-                        },
-                        "low_voltage_alert": {
-                            "name": "low_voltage_alert",
-                            "type": "uiFloatInput",
-                            "displayString": "Low Voltage Alert",
-                            "position": 57,
-                            "hidden": false,
-                            "currentValue": "$cmds.app().low_voltage_alert",
-                            "appKey": "$config.app().APP_KEY"
-                        },
-                        "charge_mode": {
-                            "name": "charge_mode",
-                            "type": "uiSelect",
-                            "displayString": "Charge Mode",
-                            "position": 58,
-                            "hidden": false,
-                            "currentValue": "$cmds.app().charge_mode",
-                            "appKey": "$config.app().APP_KEY",
-                            "options": {
-                                "charge": {
-                                    "name": "charge",
-                                    "displayString": "Charge",
-                                    "type": "uiElement"
-                                },
-                                "discharge": {
-                                    "name": "discharge",
-                                    "displayString": "Discharge",
-                                    "type": "uiElement"
-                                },
-                                "idle": {
-                                    "name": "idle",
-                                    "displayString": "Idle",
-                                    "type": "uiElement"
-                                }
-                            }
-                        }
-                    }
+                    "children": {}
                 }
             }
         }

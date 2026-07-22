@@ -1,0 +1,92 @@
+[
+    {
+        "id": "tab_tag_to_notify",
+        "type": "tab",
+        "label": "Tag to notification",
+        "disabled": false,
+        "info": "Emit a Doover notification when battery_voltage drops below a threshold.\n\nFlow: doover tag in (battery_voltage) -> switch (< 11.5 V) -> function (compose text) -> doover notify.\n\nOn a Doovit the pre-seeded \"Local Device\" connection is used automatically - nothing to configure. Off-device, point the connection at Doover Cloud and pick your agent."
+    },
+    {
+        "id": "conn_local_ttn",
+        "type": "doover-connection",
+        "name": "Local Device",
+        "dooverType": "local",
+        "apiBase": "https://api.doover.com",
+        "agentId": ""
+    },
+    {
+        "id": "tagin_battery",
+        "type": "doover-tag-in",
+        "z": "tab_tag_to_notify",
+        "name": "battery_voltage",
+        "connection": "conn_local_ttn",
+        "tag": "battery_voltage",
+        "scope": "thisApp",
+        "appKey": "",
+        "emitInitial": true,
+        "onlyOnChange": true,
+        "x": 160,
+        "y": 120,
+        "wires": [
+            [
+                "switch_threshold"
+            ]
+        ]
+    },
+    {
+        "id": "switch_threshold",
+        "type": "switch",
+        "z": "tab_tag_to_notify",
+        "name": "below 11.5 V?",
+        "property": "payload",
+        "propertyType": "msg",
+        "rules": [
+            {
+                "t": "lt",
+                "v": "11.5",
+                "vt": "num"
+            }
+        ],
+        "checkall": "true",
+        "repair": false,
+        "outputs": 1,
+        "x": 400,
+        "y": 120,
+        "wires": [
+            [
+                "func_compose_alert"
+            ]
+        ]
+    },
+    {
+        "id": "func_compose_alert",
+        "type": "function",
+        "z": "tab_tag_to_notify",
+        "name": "compose alert text",
+        "func": "msg.payload = `Low battery: ${Number(msg.payload).toFixed(2)} V`;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 640,
+        "y": 120,
+        "wires": [
+            [
+                "notify_low_battery"
+            ]
+        ]
+    },
+    {
+        "id": "notify_low_battery",
+        "type": "doover-notify",
+        "z": "tab_tag_to_notify",
+        "name": "notify low battery",
+        "connection": "conn_local_ttn",
+        "recordActivity": true,
+        "x": 880,
+        "y": 120,
+        "wires": []
+    }
+]

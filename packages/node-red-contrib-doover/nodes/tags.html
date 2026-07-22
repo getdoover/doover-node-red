@@ -1,0 +1,333 @@
+<!--
+  Tag nodes editor templates: doover-tag-in, doover-tag-get, doover-tag-out.
+
+  Category "Doover", shared brand colour, fa-tag family icons. Each dialog has a
+  connection selector, a scope selector (this app / another app / global) that
+  toggles an app-key field, a dot-notation key-path field, and per-node options.
+-->
+
+<!-- ==================== doover-tag-in ==================== -->
+<script type="text/javascript">
+  (function () {
+    // Shared: wire the scope <select> so the app-key row shows only for "another app".
+    function bindScope(prefix) {
+      var $scope = $("#" + prefix + "-scope");
+      var $appRow = $("#" + prefix + "-appKey-row");
+      function sync() {
+        if ($scope.val() === "otherApp") {
+          $appRow.show();
+        } else {
+          $appRow.hide();
+        }
+      }
+      $scope.on("change", sync);
+      sync();
+    }
+    window.__dooverBindScope = bindScope;
+  })();
+
+  RED.nodes.registerType("doover-tag-in", {
+    category: "Doover",
+    color: "#8ecae6",
+    defaults: {
+      name: { value: "" },
+      connection: { value: "", type: "doover-connection", required: true },
+      scope: { value: "thisApp", required: true },
+      appKey: { value: "" },
+      tag: { value: "", required: true },
+      emitInitial: { value: false },
+      onlyOnChange: { value: true }
+    },
+    inputs: 0,
+    outputs: 1,
+    icon: "font-awesome/fa-tag",
+    align: "left",
+    paletteLabel: "tag in",
+    label: function () {
+      return this.name || this.tag || "doover tag in";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+    oneditprepare: function () {
+      window.__dooverBindScope("node-input");
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-tag-in">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-globe"></i> Connection</label>
+    <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-scope"><i class="fa fa-sitemap"></i> Scope</label>
+    <select id="node-input-scope" style="width:70%">
+      <option value="thisApp">This app</option>
+      <option value="otherApp">Another app</option>
+      <option value="global">Global</option>
+    </select>
+  </div>
+  <div class="form-row" id="node-input-appKey-row">
+    <label for="node-input-appKey"><i class="fa fa-key"></i> App key</label>
+    <input type="text" id="node-input-appKey" placeholder="cu_otherapp_5678">
+  </div>
+  <div class="form-row">
+    <label for="node-input-tag"><i class="fa fa-tag"></i> Tag</label>
+    <input type="text" id="node-input-tag" placeholder="battery.voltage">
+  </div>
+  <div class="form-row">
+    <label for="node-input-emitInitial" style="width:auto">
+      <input type="checkbox" id="node-input-emitInitial" style="display:inline-block; width:auto; vertical-align:top">
+      Emit current value on deploy/connect
+    </label>
+  </div>
+  <div class="form-row">
+    <label for="node-input-onlyOnChange" style="width:auto">
+      <input type="checkbox" id="node-input-onlyOnChange" style="display:inline-block; width:auto; vertical-align:top">
+      Only emit when the value changes
+    </label>
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-tag-in">
+  <p>Emits a message when a Doover tag changes.</p>
+  <h3>Configuration</h3>
+  <ul>
+    <li><b>Scope</b> — read this app's tag, another app's (by app key), or a
+      global tag.</li>
+    <li><b>Tag</b> — tag name; dot-notation addresses nested paths
+      (<code>battery.voltage</code>).</li>
+    <li><b>Emit current value on deploy/connect</b> — fire once with the current
+      value when the node starts, before any change.</li>
+    <li><b>Only emit when the value changes</b> — suppress repeats of an
+      unchanged value (default on). Note: the Doover tag layer is itself
+      change-driven, so turning this off does <i>not</i> replay identical
+      successive writes — a message is emitted only when the tag's value
+      actually changes. It affects local de-duplication within this node, not
+      whether unchanged writes reach it.</li>
+  </ul>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>the new tag value</dd>
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd><code>&lt;app_key&gt;/&lt;tag&gt;</code></dd>
+    <dt>doover <span class="property-type">object</span></dt>
+    <dd><code>{ agentId, appKey, tag, previous }</code></dd>
+  </dl>
+</script>
+
+<!-- ==================== doover-tag-get ==================== -->
+<script type="text/javascript">
+  RED.nodes.registerType("doover-tag-get", {
+    category: "Doover",
+    color: "#8ecae6",
+    defaults: {
+      name: { value: "" },
+      connection: { value: "", type: "doover-connection", required: true },
+      scope: { value: "thisApp", required: true },
+      appKey: { value: "" },
+      tag: { value: "" },
+      property: { value: "payload", required: true },
+      nonClobber: { value: false },
+      defaultValue: { value: "" },
+      defaultValueType: { value: "none" }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: "font-awesome/fa-tag",
+    paletteLabel: "tag get",
+    label: function () {
+      return this.name || this.tag || "doover tag get";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+    oneditprepare: function () {
+      window.__dooverBindScope("node-input");
+      $("#node-input-property").typedInput({ types: ["msg"] });
+      $("#node-input-defaultValue").typedInput({
+        type: this.defaultValueType,
+        types: ["none", "str", "num", "bool", "json"],
+        typeField: "#node-input-defaultValueType"
+      });
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-tag-get">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-globe"></i> Connection</label>
+    <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-scope"><i class="fa fa-sitemap"></i> Scope</label>
+    <select id="node-input-scope" style="width:70%">
+      <option value="thisApp">This app</option>
+      <option value="otherApp">Another app</option>
+      <option value="global">Global</option>
+    </select>
+  </div>
+  <div class="form-row" id="node-input-appKey-row">
+    <label for="node-input-appKey"><i class="fa fa-key"></i> App key</label>
+    <input type="text" id="node-input-appKey" placeholder="cu_otherapp_5678">
+  </div>
+  <div class="form-row">
+    <label for="node-input-tag"><i class="fa fa-tag"></i> Tag</label>
+    <input type="text" id="node-input-tag" placeholder="battery.voltage (or from msg.topic)">
+  </div>
+  <div class="form-row">
+    <label for="node-input-property"><i class="fa fa-arrow-right"></i> Set</label>
+    <input type="text" id="node-input-property" style="width:70%">
+  </div>
+  <div class="form-row">
+    <label for="node-input-defaultValue"><i class="fa fa-question-circle"></i> Default</label>
+    <input type="text" id="node-input-defaultValue" style="width:70%">
+    <input type="hidden" id="node-input-defaultValueType">
+  </div>
+  <div class="form-row">
+    <label for="node-input-nonClobber" style="width:auto">
+      <input type="checkbox" id="node-input-nonClobber" style="display:inline-block; width:auto; vertical-align:top">
+      Don't overwrite the target property if it already has a value
+    </label>
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-tag-get">
+  <p>Reads a Doover tag mid-flow when a message arrives.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt class="optional">topic <span class="property-type">string</span></dt>
+    <dd>used as the tag name when the node's <b>Tag</b> field is blank
+      (a <code>ns/tag</code> topic is reduced to <code>tag</code>).</dd>
+  </dl>
+  <h3>Configuration</h3>
+  <ul>
+    <li><b>Set</b> — the message property to write the value into (default
+      <code>msg.payload</code>); combine with the non-overwrite option to enrich
+      rather than clobber.</li>
+    <li><b>Default</b> — value to use when the tag is unset.</li>
+  </ul>
+</script>
+
+<!-- ==================== doover-tag-out ==================== -->
+<script type="text/javascript">
+  RED.nodes.registerType("doover-tag-out", {
+    category: "Doover",
+    color: "#8ecae6",
+    defaults: {
+      name: { value: "" },
+      connection: { value: "", type: "doover-connection", required: true },
+      scope: { value: "thisApp", required: true },
+      appKey: { value: "" },
+      tag: { value: "" },
+      log: { value: false },
+      live: { value: false },
+      batch: { value: false },
+      rateLimit: { value: 200, validate: RED.validators.number(true) }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: "font-awesome/fa-tag",
+    align: "right",
+    paletteLabel: "tag out",
+    label: function () {
+      return this.name || this.tag || "doover tag out";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+    oneditprepare: function () {
+      window.__dooverBindScope("node-input");
+      function syncMode() {
+        var batch = $("#node-input-batch").is(":checked");
+        var live = $("#node-input-live").is(":checked");
+        // Batch operates on a whole object payload, so a single tag field and
+        // live streaming don't apply.
+        $("#node-input-tag-row").toggle(!batch);
+        $("#node-input-live-row").toggle(!batch);
+        $("#node-input-rateLimit-row").toggle(!batch && live);
+      }
+      $("#node-input-batch, #node-input-live").on("change", syncMode);
+      syncMode();
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-tag-out">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-globe"></i> Connection</label>
+    <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-scope"><i class="fa fa-sitemap"></i> Scope</label>
+    <select id="node-input-scope" style="width:70%">
+      <option value="thisApp">This app</option>
+      <option value="otherApp">Another app</option>
+      <option value="global">Global</option>
+    </select>
+  </div>
+  <div class="form-row" id="node-input-appKey-row">
+    <label for="node-input-appKey"><i class="fa fa-key"></i> App key</label>
+    <input type="text" id="node-input-appKey" placeholder="cu_otherapp_5678">
+  </div>
+  <div class="form-row" id="node-input-tag-row">
+    <label for="node-input-tag"><i class="fa fa-tag"></i> Tag</label>
+    <input type="text" id="node-input-tag" placeholder="battery.voltage">
+  </div>
+  <div class="form-row">
+    <label for="node-input-batch" style="width:auto">
+      <input type="checkbox" id="node-input-batch" style="display:inline-block; width:auto; vertical-align:top">
+      Batch mode — write an object payload of tag/value pairs atomically
+    </label>
+  </div>
+  <div class="form-row">
+    <label for="node-input-log" style="width:auto">
+      <input type="checkbox" id="node-input-log" style="display:inline-block; width:auto; vertical-align:top">
+      Record this write in history (log)
+    </label>
+  </div>
+  <div class="form-row" id="node-input-live-row">
+    <label for="node-input-live" style="width:auto">
+      <input type="checkbox" id="node-input-live" style="display:inline-block; width:auto; vertical-align:top">
+      Live — stream as one-shot (high-rate values)
+    </label>
+  </div>
+  <div class="form-row" id="node-input-rateLimit-row">
+    <label for="node-input-rateLimit"><i class="fa fa-clock-o"></i> Min interval</label>
+    <input type="text" id="node-input-rateLimit" style="width:100px"> ms
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-tag-out">
+  <p>Writes <code>msg.payload</code> to a Doover tag.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>the value to write; in <b>batch mode</b> an object of
+      <code>{ tag: value }</code> pairs written atomically.</dd>
+  </dl>
+  <h3>Options</h3>
+  <ul>
+    <li><b>Batch mode</b> — payload is an object; every key is written in one
+      atomic multi-write.</li>
+    <li><b>Record in history</b> — also persist this write as a logged data
+      point.</li>
+    <li><b>Live</b> — stream the value as an ephemeral one-shot for high-rate
+      display. A minimum-interval guard drops writes that arrive too fast and
+      shows a "rate limited" status.</li>
+  </ul>
+</script>

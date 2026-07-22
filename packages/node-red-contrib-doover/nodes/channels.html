@@ -1,0 +1,231 @@
+<!--
+  Channel nodes editor templates: doover-channel-in, doover-channel-out,
+  doover-aggregate-get. One branded "Doover" category, one colour (#4B9CD3).
+-->
+
+<!-- ===================== doover channel in ===================== -->
+<script type="text/javascript">
+  RED.nodes.registerType("doover-channel-in", {
+    category: "Doover",
+    color: "#4B9CD3",
+    defaults: {
+      name: { value: "" },
+      connection: {
+        value: "",
+        type: "doover-connection",
+        required: true,
+      },
+      channel: { value: "", required: true },
+      emitAggregateOnConnect: { value: false },
+    },
+    inputs: 0,
+    outputs: 1,
+    align: "left",
+    icon: "font-awesome/fa-sign-in",
+    paletteLabel: "channel in",
+    label: function () {
+      return this.name || this.channel || "channel in";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-channel-in">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-plug"></i> Connection</label>
+    <input type="text" id="node-input-connection" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-channel"><i class="fa fa-hashtag"></i> Channel</label>
+    <input type="text" id="node-input-channel" placeholder="e.g. tag_values" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-emitAggregateOnConnect" style="width:auto">
+      <i class="fa fa-history"></i> Emit aggregate on connect
+    </label>
+    <input
+      type="checkbox"
+      id="node-input-emitAggregateOnConnect"
+      style="display:inline-block; width:auto; vertical-align:top"
+    />
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name" />
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-channel-in">
+  <p>Subscribes to a Doover channel and emits a message for each message received.</p>
+  <h3>Outputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>the message payload received on the channel</dd>
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd>the channel name</dd>
+    <dt>doover <span class="property-type">object</span></dt>
+    <dd><code>{ agentId, channel }</code> (plus <code>aggregate: true</code> on the initial aggregate emit)</dd>
+  </dl>
+  <h3>Options</h3>
+  <dl class="message-properties">
+    <dt>Emit aggregate on connect</dt>
+    <dd>Emit the channel's current aggregate as one message when the connection comes up.</dd>
+  </dl>
+</script>
+
+<!-- ===================== doover channel out ===================== -->
+<script type="text/javascript">
+  RED.nodes.registerType("doover-channel-out", {
+    category: "Doover",
+    color: "#4B9CD3",
+    defaults: {
+      name: { value: "" },
+      connection: {
+        value: "",
+        type: "doover-connection",
+        required: true,
+      },
+      channel: { value: "" },
+      recordLog: { value: false },
+      maxAge: { value: "", validate: RED.validators.number(true) },
+      oneShot: { value: false },
+    },
+    inputs: 1,
+    outputs: 0,
+    align: "right",
+    icon: "font-awesome/fa-sign-out",
+    paletteLabel: "channel out",
+    label: function () {
+      return this.name || this.channel || "channel out";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-channel-out">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-plug"></i> Connection</label>
+    <input type="text" id="node-input-connection" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-channel"><i class="fa fa-hashtag"></i> Channel</label>
+    <input type="text" id="node-input-channel" placeholder="defaults to msg.topic" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-recordLog" style="width:auto">
+      <i class="fa fa-database"></i> Record in history
+    </label>
+    <input
+      type="checkbox"
+      id="node-input-recordLog"
+      style="display:inline-block; width:auto; vertical-align:top"
+    />
+  </div>
+  <div class="form-row">
+    <label for="node-input-maxAge"><i class="fa fa-clock-o"></i> Max age (s)</label>
+    <input type="text" id="node-input-maxAge" placeholder="optional" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-oneShot" style="width:auto">
+      <i class="fa fa-bolt"></i> One-shot (do not merge aggregate)
+    </label>
+    <input
+      type="checkbox"
+      id="node-input-oneShot"
+      style="display:inline-block; width:auto; vertical-align:top"
+    />
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name" />
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-channel-out">
+  <p>Publishes <code>msg.payload</code> to a Doover channel.</p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>the value to publish</dd>
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd>used as the channel name when the Channel field is left blank</dd>
+  </dl>
+  <h3>Options</h3>
+  <dl class="message-properties">
+    <dt>Record in history</dt>
+    <dd>Persist this write in the channel history (<code>record_log</code>).</dd>
+    <dt>Max age (s)</dt>
+    <dd>Aggregate cache max-age hint, in seconds.</dd>
+    <dt>One-shot</dt>
+    <dd>Deliver to live subscribers without merging into the persisted aggregate (for high-rate values).</dd>
+  </dl>
+</script>
+
+<!-- ===================== doover aggregate get ===================== -->
+<script type="text/javascript">
+  RED.nodes.registerType("doover-aggregate-get", {
+    category: "Doover",
+    color: "#4B9CD3",
+    defaults: {
+      name: { value: "" },
+      connection: {
+        value: "",
+        type: "doover-connection",
+        required: true,
+      },
+      channel: { value: "" },
+      property: { value: "payload", required: true },
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: "font-awesome/fa-download",
+    paletteLabel: "aggregate get",
+    label: function () {
+      return this.name || this.channel || "aggregate get";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-aggregate-get">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-plug"></i> Connection</label>
+    <input type="text" id="node-input-connection" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-channel"><i class="fa fa-hashtag"></i> Channel</label>
+    <input type="text" id="node-input-channel" placeholder="defaults to msg.topic" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-property"><i class="fa fa-sign-out"></i> Set property</label>
+    <input type="text" id="node-input-property" placeholder="payload" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name" />
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-aggregate-get">
+  <p>
+    On input, fetches a Doover channel's current aggregate and sets it on a
+    configurable message property (default <code>msg.payload</code>), then passes
+    the message on.
+  </p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd>used as the channel name when the Channel field is left blank</dd>
+  </dl>
+  <h3>Options</h3>
+  <dl class="message-properties">
+    <dt>Set property</dt>
+    <dd>Message property to write the aggregate into (dot-notation supported).</dd>
+  </dl>
+</script>

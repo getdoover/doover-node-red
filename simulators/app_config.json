@@ -1,5 +1,11 @@
 {
-    "digital_outputs_enabled": true,
-    "a_funny_message": "yeeha",
-    "simulator_app_key": "sim_app_key"
+    "editor_enabled": true,
+    "editor_access": "local-only",
+    "extra_palette_packages": [],
+    "flows_sync_enabled": false,
+    "flow_package": "",
+    "credential_secret": "",
+    "flow_env": {},
+    "memory_limit_mb": 256,
+    "timezone": "UTC"
 }

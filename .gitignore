@@ -172,3 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Node / npm workspaces (Doover x Node-RED packages)
+node_modules/
+npm-debug.log*
+.npm/
+*.tgz
+.node-red/
+packages/*/dist/

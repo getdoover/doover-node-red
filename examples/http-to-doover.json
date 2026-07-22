@@ -1,0 +1,101 @@
+[
+    {
+        "id": "tab_http_to_doover",
+        "type": "tab",
+        "label": "HTTP to Doover tag",
+        "disabled": false,
+        "info": "Poll a public JSON API on a timer and store a value from it in a Doover tag - the canonical \"bring outside data into Doover\" pattern, and the reason to embed Node-RED at all (use the huge existing node ecosystem, land the result on a Doover tag).\n\nFlow: inject (every 5 min) -> http request (Open-Meteo, no auth) -> function (extract temperature) -> doover tag out (outside_temp_c).\n\nThe example fetches the current temperature for Brisbane; change the URL's latitude/longitude for your site."
+    },
+    {
+        "id": "conn_local_htd",
+        "type": "doover-connection",
+        "name": "Local Device",
+        "dooverType": "local",
+        "apiBase": "https://api.doover.com",
+        "agentId": ""
+    },
+    {
+        "id": "inject_poll",
+        "type": "inject",
+        "z": "tab_http_to_doover",
+        "name": "every 5 min",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "300",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "1",
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 150,
+        "y": 120,
+        "wires": [
+            [
+                "http_openmeteo"
+            ]
+        ]
+    },
+    {
+        "id": "http_openmeteo",
+        "type": "http request",
+        "z": "tab_http_to_doover",
+        "name": "Open-Meteo current weather",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://api.open-meteo.com/v1/forecast?latitude=-27.47&longitude=153.02&current=temperature_2m",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 400,
+        "y": 120,
+        "wires": [
+            [
+                "func_extract_temp"
+            ]
+        ]
+    },
+    {
+        "id": "func_extract_temp",
+        "type": "function",
+        "z": "tab_http_to_doover",
+        "name": "extract temperature",
+        "func": "// Open-Meteo returns { current: { temperature_2m: <number> } }\nconst temp = msg.payload && msg.payload.current\n    ? msg.payload.current.temperature_2m\n    : undefined;\nif (temp === undefined) {\n    node.warn(\"no temperature in response\");\n    return null;\n}\nmsg.payload = temp;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 660,
+        "y": 120,
+        "wires": [
+            [
+                "tagout_temp"
+            ]
+        ]
+    },
+    {
+        "id": "tagout_temp",
+        "type": "doover-tag-out",
+        "z": "tab_http_to_doover",
+        "name": "outside_temp_c",
+        "connection": "conn_local_htd",
+        "tag": "outside_temp_c",
+        "scope": "thisApp",
+        "appKey": "",
+        "log": true,
+        "live": false,
+        "x": 900,
+        "y": 120,
+        "wires": []
+    }
+]

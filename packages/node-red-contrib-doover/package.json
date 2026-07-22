@@ -1,0 +1,35 @@
+{
+  "name": "node-red-contrib-doover",
+  "version": "0.1.0",
+  "description": "Doover nodes for Node-RED: tags, channels, aggregates and notifications, working both on a Doover device (local gRPC) and against the Doover cloud.",
+  "keywords": [
+    "node-red",
+    "doover"
+  ],
+  "node-red": {
+    "nodes": {
+      "doover-connection": "nodes/doover-connection.js",
+      "doover-tag-in": "nodes/tags.js",
+      "doover-tag-get": "nodes/tags.js",
+      "doover-tag-out": "nodes/tags.js",
+      "doover-channel-in": "nodes/channels.js",
+      "doover-channel-out": "nodes/channels.js",
+      "doover-aggregate-get": "nodes/channels.js",
+      "doover-notify": "nodes/notify.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@doover/nodered-core": "^0.1.0"
+  },
+  "devDependencies": {
+    "node-red": "^4.0.0",
+    "node-red-node-test-helper": "^0.3.4"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,75 @@
+/**
+ * Node-RED settings for the Doover Node-RED app.
+ *
+ * This file is a TEMPLATE. The Doover supervisor (pydoover) renders it into
+ * `<userDir>/settings.js` at startup, substituting the `__MARKER__` tokens from
+ * the app's deployment config. Secrets and per-device values are read from the
+ * process environment the supervisor injects (see runner.build_child_env).
+ *
+ * Do not edit the rendered copy in /data — edit this template (and redeploy).
+ */
+
+module.exports = {
+    // ---- Runtime / storage -------------------------------------------------
+    // flowFile lives in the mapped userDir (/data) so flows persist across
+    // container restarts.
+    flowFile: __FLOW_FILE__,
+
+    // The credential secret comes from the environment the supervisor sets from
+    // app config (shared across a fleet so flow packages decrypt everywhere).
+    credentialSecret: process.env.DOOVER_CREDENTIAL_SECRET || false,
+
+    // Retain a single flow-file backup; deploys are versioned cloud-side.
+    flowFilePretty: true,
+
+    // ---- HTTP / editor -----------------------------------------------------
+    uiPort: __NODE_RED_PORT__,
+
+    // Admin (editor + admin API) mount point.
+    httpAdminRoot: __ADMIN_ROOT__,
+    // HTTP-in nodes are served under /api to avoid clashing with the editor.
+    httpNodeRoot: "/api",
+
+    // Disable-editor hook: when the app config turns the editor off, the admin
+    // UI is not served (flows still run). Driven by the supervisor's env flag.
+    disableEditor: (process.env.DOOVER_DISABLE_EDITOR === "true") || __DISABLE_EDITOR__,
+
+    // ---- External modules --------------------------------------------------
+    // Allow the pre-installed Doover palette (and any configured extra palette
+    // packages) to be managed from the editor's palette manager; block ad-hoc
+    // installs otherwise.
+    externalModules: {
+        autoInstall: false,
+        palette: {
+            allowInstall: true,
+            allowUpload: false,
+        },
+        modules: {
+            allowInstall: true,
+            allowList: __EXTERNAL_MODULES_ALLOWLIST__,
+        },
+    },
+
+    // ---- Function nodes ----------------------------------------------------
+    // Nothing exposed to function nodes yet; Doover access is via palette nodes.
+    functionGlobalContext: {},
+    functionExternalModules: true,
+
+    // ---- Logging -----------------------------------------------------------
+    logging: {
+        console: {
+            level: process.env.DOOVER_LOG_LEVEL || "info",
+            metrics: false,
+            audit: false,
+        },
+    },
+
+    // ---- Editor theme / misc ----------------------------------------------
+    editorTheme: {
+        projects: {
+            // Flow storage is handled by the Doover channel-backed storage
+            // module (later phase); the built-in projects feature stays off.
+            enabled: false,
+        },
+    },
+};

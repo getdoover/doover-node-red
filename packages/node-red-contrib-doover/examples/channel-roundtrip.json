@@ -1,0 +1,89 @@
+[
+    {
+        "id": "tab_channel_roundtrip",
+        "type": "tab",
+        "label": "Channel round-trip",
+        "disabled": false,
+        "info": "Publish to a Doover channel and receive it straight back on a subscription - a self-contained sanity check that the connection works end to end.\n\nFlow (two halves joined by the channel itself):\n  inject -> doover channel out (demo_roundtrip)\n  doover channel in (demo_roundtrip) -> debug\n\nPress the inject button; the JSON payload appears in the debug sidebar after a round-trip through the platform."
+    },
+    {
+        "id": "conn_local_crt",
+        "type": "doover-connection",
+        "name": "Local Device",
+        "dooverType": "local",
+        "apiBase": "https://api.doover.com",
+        "agentId": ""
+    },
+    {
+        "id": "inject_send",
+        "type": "inject",
+        "z": "tab_channel_roundtrip",
+        "name": "send test message",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"hello\":\"doover\",\"n\":42}",
+        "payloadType": "json",
+        "x": 190,
+        "y": 100,
+        "wires": [
+            [
+                "channelout_demo"
+            ]
+        ]
+    },
+    {
+        "id": "channelout_demo",
+        "type": "doover-channel-out",
+        "z": "tab_channel_roundtrip",
+        "name": "demo_roundtrip",
+        "connection": "conn_local_crt",
+        "channel": "demo_roundtrip",
+        "recordLog": false,
+        "maxAge": 0,
+        "oneShot": false,
+        "x": 450,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "channelin_demo",
+        "type": "doover-channel-in",
+        "z": "tab_channel_roundtrip",
+        "name": "demo_roundtrip",
+        "connection": "conn_local_crt",
+        "channel": "demo_roundtrip",
+        "emitAggregateOnConnect": false,
+        "x": 190,
+        "y": 200,
+        "wires": [
+            [
+                "debug_out"
+            ]
+        ]
+    },
+    {
+        "id": "debug_out",
+        "type": "debug",
+        "z": "tab_channel_roundtrip",
+        "name": "channel message",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 450,
+        "y": 200,
+        "wires": []
+    }
+]

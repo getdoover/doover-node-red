@@ -1,0 +1,26 @@
+{
+  "name": "@doover/nodered-core",
+  "version": "0.1.0",
+  "description": "Doover transport + tag layer for Node-RED. Node-RED-independent JS library exposing DooverTransport (local gRPC / cloud / mock) and a tag convenience layer over channel aggregates.",
+  "main": "index.js",
+  "type": "commonjs",
+  "files": [
+    "index.js",
+    "lib/",
+    "protos/",
+    "scripts/"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "sync-protos": "bash scripts/sync-protos.sh"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.10.0",
+    "@grpc/proto-loader": "^0.7.0",
+    "doover-js": "^0.7.1"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,71 @@
+[
+    {
+        "id": "tab_cross_app",
+        "type": "tab",
+        "label": "Cross-app tag read",
+        "disabled": false,
+        "info": "Read a tag published by *another* Doover app on the same device (or, over a cloud connection, another device), transform it, and write the result to a tag on *this* app.\n\nFlow: doover tag in (scope = Another app) -> function -> doover tag out (scope = This app).\n\nSet the source app key and tag name in the tag-in node. On a Doovit the editor offers an app-key dropdown; here they are pre-filled with placeholders you should change (cu_weather_station / rainfall_mm)."
+    },
+    {
+        "id": "conn_local_cat",
+        "type": "doover-connection",
+        "name": "Local Device",
+        "dooverType": "local",
+        "apiBase": "https://api.doover.com",
+        "agentId": ""
+    },
+    {
+        "id": "tagin_other_app",
+        "type": "doover-tag-in",
+        "z": "tab_cross_app",
+        "name": "rainfall from weather app",
+        "connection": "conn_local_cat",
+        "tag": "rainfall_mm",
+        "scope": "otherApp",
+        "appKey": "cu_weather_station",
+        "emitInitial": true,
+        "onlyOnChange": true,
+        "x": 190,
+        "y": 120,
+        "wires": [
+            [
+                "func_transform"
+            ]
+        ]
+    },
+    {
+        "id": "func_transform",
+        "type": "function",
+        "z": "tab_cross_app",
+        "name": "flag if wet",
+        "func": "// Enrich: keep the raw value and add a derived boolean.\nconst mm = Number(msg.payload) || 0;\nmsg.payload = mm;\nmsg.wet = mm > 0;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 440,
+        "y": 120,
+        "wires": [
+            [
+                "tagout_mirror"
+            ]
+        ]
+    },
+    {
+        "id": "tagout_mirror",
+        "type": "doover-tag-out",
+        "z": "tab_cross_app",
+        "name": "upstream_rainfall_mm",
+        "connection": "conn_local_cat",
+        "tag": "upstream_rainfall_mm",
+        "scope": "thisApp",
+        "appKey": "",
+        "log": true,
+        "live": false,
+        "x": 690,
+        "y": 120,
+        "wires": []
+    }
+]
