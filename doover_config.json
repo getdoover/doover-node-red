@@ -1,0 +1,200 @@
+{
+    "sample_application": {
+        "key": "32134bbb-5278-43c0-a6ca-4046a5edeb9f",
+        "name": "sample_application",
+        "display_name": "Sample Application",
+        "type": "DEV",
+        "visibility": "PUB",
+        "allow_many": true,
+        "description": "A template application for Doover",
+        "long_description": "README.md",
+        "depends_on": [],
+        "owner_org_key": "",
+        "image_name": "ghcr.io/getdoover/app-template:main",
+        "container_registry_profile_key": "",
+        "build_args": "--platform linux/amd64,linux/arm64",
+        "config_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": "",
+            "title": "$default",
+            "type": "object",
+            "properties": {
+                "digital_outputs_enabled": {
+                    "title": "Digital Outputs Enabled",
+                    "x-name": "digital_outputs_enabled",
+                    "x-hidden": false,
+                    "type": [
+                        "boolean",
+                        "null"
+                    ],
+                    "x-required": false,
+                    "default": true,
+                    "x-position": 0
+                },
+                "a_funny_message": {
+                    "title": "A Funny Message",
+                    "x-name": "a_funny_message",
+                    "x-hidden": false,
+                    "type": "string",
+                    "x-required": true,
+                    "x-position": 1
+                },
+                "simulator_app_key": {
+                    "title": "Simulator App Key",
+                    "x-name": "simulator_app_key",
+                    "x-hidden": false,
+                    "format": "doover-resource-application",
+                    "type": "string",
+                    "x-required": true,
+                    "description": "The app key for the simulator",
+                    "x-position": 2
+                }
+            },
+            "additionalElements": true,
+            "required": [
+                "a_funny_message",
+                "simulator_app_key"
+            ]
+        },
+        "ui_schema": {
+            "displayString": "$config.app().APP_DISPLAY_NAME",
+            "hidden": "$config.app().hidden:boolean:false:boolean:false",
+            "position": "$config.app().dv_app_position:number:100",
+            "icon": null,
+            "colour": null,
+            "defaultOpen": false,
+            "type": "uiApplication",
+            "name": "$config.app().APP_KEY",
+            "children": {
+                "is_working": {
+                    "name": "is_working",
+                    "type": "uiVariable",
+                    "displayString": "We Working?",
+                    "showActivity": true,
+                    "position": 51,
+                    "hidden": false,
+                    "varType": "bool",
+                    "currentValue": "$tag.app().is_working:boolean:false"
+                },
+                "uptime": {
+                    "name": "uptime",
+                    "type": "uiVariable",
+                    "displayString": "Uptime",
+                    "showActivity": true,
+                    "position": 52,
+                    "hidden": false,
+                    "varType": "float",
+                    "currentValue": "$tag.app().uptime:number:0"
+                },
+                "send_alert": {
+                    "name": "send_alert",
+                    "type": "uiButton",
+                    "displayString": "Send message as alert",
+                    "position": 1,
+                    "hidden": false,
+                    "currentValue": "$cmds.app().send_alert",
+                    "appKey": "$config.app().APP_KEY"
+                },
+                "test_message": {
+                    "name": "test_message",
+                    "type": "uiTextInput",
+                    "displayString": "Put in a message",
+                    "position": 54,
+                    "hidden": false,
+                    "currentValue": "$cmds.app().test_message",
+                    "appKey": "$config.app().APP_KEY",
+                    "isTextArea": false
+                },
+                "test_output": {
+                    "name": "test_output",
+                    "type": "uiVariable",
+                    "displayString": "This is message we got",
+                    "showActivity": true,
+                    "position": 55,
+                    "hidden": false,
+                    "varType": "string",
+                    "currentValue": "$tag.app().test_output:string:\"\""
+                },
+                "battery": {
+                    "name": "battery",
+                    "type": "uiSubmodule",
+                    "displayString": "Battery Module",
+                    "showActivity": true,
+                    "position": 59,
+                    "hidden": false,
+                    "children": {
+                        "voltage": {
+                            "name": "voltage",
+                            "type": "uiVariable",
+                            "displayString": "Battery Voltage",
+                            "showActivity": true,
+                            "position": 56,
+                            "hidden": false,
+                            "varType": "float",
+                            "currentValue": "$tag.app().battery_voltage:number:0",
+                            "decPrecision": 2,
+                            "ranges": [
+                                {
+                                    "min": 0,
+                                    "max": 10,
+                                    "colour": "red",
+                                    "show_on_graph": true,
+                                    "label": "Low"
+                                },
+                                {
+                                    "min": 10,
+                                    "max": 20,
+                                    "colour": "green",
+                                    "show_on_graph": true,
+                                    "label": "Normal"
+                                },
+                                {
+                                    "min": 20,
+                                    "max": 30,
+                                    "colour": "blue",
+                                    "show_on_graph": true,
+                                    "label": "High"
+                                }
+                            ]
+                        },
+                        "low_voltage_alert": {
+                            "name": "low_voltage_alert",
+                            "type": "uiFloatInput",
+                            "displayString": "Low Voltage Alert",
+                            "position": 57,
+                            "hidden": false,
+                            "currentValue": "$cmds.app().low_voltage_alert",
+                            "appKey": "$config.app().APP_KEY"
+                        },
+                        "charge_mode": {
+                            "name": "charge_mode",
+                            "type": "uiSelect",
+                            "displayString": "Charge Mode",
+                            "position": 58,
+                            "hidden": false,
+                            "currentValue": "$cmds.app().charge_mode",
+                            "appKey": "$config.app().APP_KEY",
+                            "options": {
+                                "charge": {
+                                    "name": "charge",
+                                    "displayString": "Charge",
+                                    "type": "uiElement"
+                                },
+                                "discharge": {
+                                    "name": "discharge",
+                                    "displayString": "Discharge",
+                                    "type": "uiElement"
+                                },
+                                "idle": {
+                                    "name": "idle",
+                                    "displayString": "Idle",
+                                    "type": "uiElement"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
