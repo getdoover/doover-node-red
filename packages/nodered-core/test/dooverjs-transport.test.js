@@ -237,6 +237,125 @@ test("local: baseUrl defaults to $DDA_WEB_URI when set", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Local transport — connect/close race & lifecycle robustness
+//
+// These drive the transport with a hand-built doover-js *client* (injected via
+// `opts.client`) whose gateway.connect() / getAgentScope() the test resolves on
+// demand — so a close() or a second connect() can be interleaved at an exact
+// point mid-connect. That control is impossible with the auto-completing
+// FakeWebSocket above.
+// ---------------------------------------------------------------------------
+
+/**
+ * A minimal controllable doover-js client stand-in.
+ * @param {{ agentId?: string, connectDeferred?: boolean, scopeDeferred?: boolean, scopeThrows?: boolean }} [o]
+ */
+function makeControllableClient(o = {}) {
+  const ctl = /** @type {any} */ ({ disconnects: 0 });
+  const gateway = {
+    _open: false,
+    connect() {
+      if (o.connectDeferred) {
+        return new Promise((res) => {
+          ctl.resolveConnect = () => {
+            gateway._open = true;
+            res(undefined);
+          };
+        });
+      }
+      gateway._open = true;
+      return Promise.resolve();
+    },
+    isConnected() {
+      return gateway._open;
+    },
+    disconnect() {
+      ctl.disconnects += 1;
+      gateway._open = false;
+    },
+    on() {},
+    off() {},
+    subscribeToChannel() {
+      return () => {};
+    },
+    sendOneShotMessage() {},
+  };
+  ctl.gateway = gateway;
+  ctl.client = {
+    gateway,
+    onStatusChange(fn) {
+      ctl.statusCb = fn;
+      return () => {};
+    },
+    getAgentScope() {
+      if (o.scopeThrows) {
+        return Promise.reject(new Error("agent scope unreachable"));
+      }
+      if (o.scopeDeferred) {
+        return new Promise((res, rej) => {
+          ctl.resolveScope = () =>
+            res({ mode: "list", agentIds: [o.agentId || "agent-late"] });
+          ctl.rejectScope = rej;
+        });
+      }
+      return Promise.resolve({ mode: "list", agentIds: [o.agentId || "a"] });
+    },
+  };
+  return ctl;
+}
+
+const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
+
+test("local: close() during an in-flight connect() wins and does not leak the gateway socket", async () => {
+  const ctl = makeControllableClient({ connectDeferred: true });
+  const t = new DooverJsLocalTransport({ client: ctl.client });
+  const p = t.connect();
+  await tick(); // park inside `await gateway.connect()`
+  await t.close(); // close interleaves the in-flight connect
+  assert.equal(t.status(), "disconnected");
+
+  // The gateway socket opens AFTER close() (connect resolves late). The fix must
+  // recheck `_closed` and tear it back down — not leave a live socket behind a
+  // transport that reports "disconnected", and never flip to "connected".
+  ctl.resolveConnect();
+  await p;
+  assert.equal(t.status(), "disconnected", "close wins the race");
+  assert.equal(ctl.gateway.isConnected(), false, "no leaked open gateway socket");
+  assert.ok(ctl.disconnects >= 1, "gateway was disconnected");
+});
+
+test("local: a concurrent connect() joins the in-flight connect and sees the resolved agent id", async () => {
+  const ctl = makeControllableClient({ scopeDeferred: true, agentId: "agent-late" });
+  const t = new DooverJsLocalTransport({ client: ctl.client });
+  const p1 = t.connect();
+  await tick(); // park inside `await getAgentScope()`
+  assert.equal(t.agentId(), null, "agent id not resolved yet");
+
+  // The gateway's own status callback flips us to "connected" while the agent id
+  // is still null. A second connect() must NOT short-circuit on that status — it
+  // must join the in-flight connect and observe the resolved id.
+  ctl.statusCb({ state: "connected" });
+  const p2 = t.connect();
+  ctl.resolveScope();
+  await Promise.all([p1, p2]);
+  assert.equal(t.agentId(), "agent-late", "concurrent connect saw the resolved id");
+  assert.equal(t.status(), "connected");
+  await t.close();
+});
+
+test("local: a failed connect() ends 'disconnected' (never stuck at 'connecting')", async () => {
+  const ctl = makeControllableClient({ scopeThrows: true });
+  const t = new DooverJsLocalTransport({ client: ctl.client });
+  const seen = [];
+  t.on("status", (s) => seen.push(s));
+  await assert.rejects(() => t.connect(), /unreachable/);
+  assert.equal(t.status(), "disconnected", "failed connect falls back to disconnected");
+  assert.ok(seen.includes("connecting"));
+  assert.ok(seen.includes("disconnected"));
+  await t.close();
+});
+
+// ---------------------------------------------------------------------------
 // Local transport — publish
 // ---------------------------------------------------------------------------
 

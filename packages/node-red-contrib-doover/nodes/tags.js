@@ -55,6 +55,28 @@ function validateTag(key) {
 }
 
 /**
+ * Validate the configured scope. For `otherApp` the app key is a real namespace
+ * path segment (TagClient._resolvePath unshifts it), so an empty or non-charset
+ * app key would silently target a phantom "" (or malformed) namespace. Returns
+ * an error message, or null when the scope config is valid.
+ * @param {Record<string, any>} config
+ * @returns {string | null}
+ */
+function validateScope(config) {
+  const scope = config.scope || "thisApp";
+  if (scope === "otherApp") {
+    const ak = config.appKey;
+    if (typeof ak !== "string" || ak.length === 0) {
+      return "scope 'another app' requires an App key";
+    }
+    if (!SEGMENT_RE.test(ak)) {
+      return `invalid App key "${ak}" (allowed: A-Z a-z 0-9 _ -)`;
+    }
+  }
+  return null;
+}
+
+/**
  * Resolve the configured scope into TagClient options plus the app-key used for
  * the message topic and `msg.doover.appKey`.
  * @param {Record<string, any>} config
@@ -120,6 +142,13 @@ module.exports = function (RED) {
     if (tagErr) {
       node.status({ fill: "red", shape: "ring", text: "invalid tag" });
       node.error(`doover tag in: ${tagErr}`);
+      return;
+    }
+
+    const scopeErr = validateScope(config);
+    if (scopeErr) {
+      node.status({ fill: "red", shape: "ring", text: "invalid app key" });
+      node.error(`doover tag in: ${scopeErr}`);
       return;
     }
 

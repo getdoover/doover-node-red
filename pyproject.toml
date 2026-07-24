@@ -6,6 +6,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pydoover>=1.0.0a8",
+    # pydoover.docker imports grpc + protobuf unconditionally (the supervisor
+    # talks to the device agent over gRPC on DDA_URI). They are genuine RUNTIME
+    # deps, not dev-only: the production image builds with `uv sync --no-dev`, so
+    # without these the supervisor crashes at import (ModuleNotFoundError: grpc).
+    # Prebuilt musllinux aarch64/x86_64 wheels exist, so no build toolchain needed.
+    "grpcio>=1.71.0",
+    "protobuf>=6.30.2",
 ]
 
 [project.scripts]
@@ -20,8 +27,6 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "aiohttp>=3.11.18",
-    "grpcio>=1.71.0",
-    "protobuf>=6.30.2",
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
     "requests>=2.32.3",

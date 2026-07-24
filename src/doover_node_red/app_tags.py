@@ -12,8 +12,10 @@ class NodeRedTags(Tags):
     # "starting" | "running" | "restarting" | "stopped" | "error"
     runtime_state = Tag("string", default="starting")
 
-    # Epoch seconds of the last observed flows deploy (flows file mtime).
-    last_deploy_time = Tag("number", default=0)
+    # Human-readable last-deploy time (local-time datetime, or "never" before the
+    # first deploy). Rendered from the flows file mtime by the supervisor — a raw
+    # epoch is meaningless to non-programmer customers.
+    last_deploy_time = Tag("string", default="never")
 
     # Resident memory of the Node-RED process, in MB.
     memory_mb = Tag("number", default=0)

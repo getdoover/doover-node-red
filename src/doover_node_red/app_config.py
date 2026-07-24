@@ -58,9 +58,13 @@ class NodeRedConfig(config.Schema):
     flow_package = config.String(
         "Flow Package",
         default="",
+        hidden=True,
         description=(
-            "Pinned flow package as 'name@version' (or 'latest') for fleet mode. "
-            "Leave blank for dev mode (live per-deploy channel sync)."
+            "EXPERIMENTAL / not yet implemented. Pinned flow package as "
+            "'name@version' (or 'latest') for fleet mode. Hidden until the "
+            "supervisor's fetch/install/load apply-loop ships — setting it "
+            "currently only echoes the value to the applied-package status tag; "
+            "no package is fetched, installed or loaded. Leave blank for dev mode."
         ),
     )
     credential_secret = config.String(

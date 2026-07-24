@@ -1,0 +1,15 @@
+{
+  "name": "node-red-contrib-e2e-introspect",
+  "version": "0.0.0",
+  "private": true,
+  "description": "E2E-only Node-RED module exposing Doover transport internals over an admin endpoint. Not shipped.",
+  "keywords": [
+    "node-red"
+  ],
+  "node-red": {
+    "nodes": {
+      "e2e-introspect": "introspect.js"
+    }
+  },
+  "license": "MIT"
+}

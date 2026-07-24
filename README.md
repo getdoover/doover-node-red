@@ -9,7 +9,8 @@ notifications and UI both **on a Doover device** and **anywhere else** (an
 existing Node-RED install talking to the Doover cloud).
 
 The design goal is end-customer ease of use: zero-config on a Doovit,
-dropdown-driven configuration everywhere, and a ten-minute path from
+pick-don't-type configuration (live dropdowns for tags/channels/agents land in
+Phase 2 — today the config fields are free-text), and a ten-minute path from
 "install the app" to "flow visible in the Doover UI".
 
 > 📋 The authoritative design is in **[`PLAN.md`](PLAN.md)** — product principles,
@@ -55,20 +56,24 @@ doover-node-red/
                      │        │                                    │
                      │        ▼                                    │
                      │  @doover/nodered-core  (transport layer)    │
-                     │   ├── LocalTransport  (gRPC, on-device)     │
-                     │   └── CloudTransport  (REST + WSS, remote)  │
+                     │   ├── DooverJsLocalTransport (REST+WS, on-device) │
+                     │   └── DooverJsCloudTransport (REST+WSS, remote)   │
                      └────────┬──────────────────────┬─────────────┘
                               │                       │
-                 device agent gRPC socket        api.doover.com
-                 (same Doovit)                   (+ gateway WSS)
+                 dda-agent local web API          api.doover.com
+                 127.0.0.1:49100 (same Doovit)    (+ gateway WSS)
 ```
 
 - **`@doover/nodered-core`** is a plain, Node-RED-independent library exposing one
-  `DooverTransport` interface with two implementations: `LocalTransport` (gRPC to
-  the on-device agent, protos vendored from pydoover) and `CloudTransport` (REST +
-  WebSocket to the Doover cloud, reusing `doover-js`). A **tag layer** rides on top
-  of either transport — tags are a convenience over the `tag_values` channel
-  aggregate, exactly as in pydoover.
+  `DooverTransport` interface. The shipped default on a Doovit is
+  **`DooverJsLocalTransport`** — `doover-js`'s `LocalAgentClient` over the on-device
+  dda-agent's local **REST + WebSocket web API** (port 49100, base URL from
+  `$DDA_WEB_URI`, default `http://127.0.0.1:49100`). The remote path is
+  **`DooverJsCloudTransport`** (REST + WebSocket to the Doover cloud, reusing
+  `doover-js`). A legacy gRPC `LocalTransport` (port 50051, protos vendored from
+  pydoover) is retained and tested but **parked** — it is not the default. A **tag
+  layer** rides on top of either transport — tags are a convenience over the
+  `tag_values` channel aggregate, exactly as in pydoover.
 - **`node-red-contrib-doover`** is the palette. Every message node references a
   shared **`doover-connection`** config node (à la `mqtt-broker`); the *only*
   difference between on-device and remote is which connection a node points at.
@@ -87,11 +92,15 @@ See `PLAN.md` §2 for the transport contract and §3 for the full node catalogue
 ### On a Doovit (the zero-config path)
 
 1. Install the **Node-RED for Doover** app onto a device from the Doover app store.
-2. Open the app in the Doover UI and use the **Open Editor** action — it activates
-   a tunnel to the on-device Node-RED editor and surfaces the link.
-3. Drag a **doover tag in** node onto the canvas. The local connection is
-   auto-detected (agent id + app key read from the container env) — no credentials,
-   no endpoints. Wire it to a **doover notify** node and **Deploy**.
+   It runs the Node-RED runtime with the Doover palette pre-installed and a
+   zero-config local connection to the on-device agent.
+2. Open the Node-RED editor. The in-app **Open Editor** action is the intended
+   one-click path, but the on-device editor tunnel is still being built — today
+   the action posts a "coming in a later phase" notice (config field
+   `editor_access` is flagged EXPERIMENTAL). See `PLAN.md` Phase 2 for the tunnel.
+3. In the editor, drag a **doover tag in** node onto the canvas. The local
+   connection is auto-detected (agent id + app key read from the container env) —
+   no credentials, no endpoints. Wire it to a **doover notify** node and **Deploy**.
 4. The result is visible in the Doover UI. Try importing one of the
    [`examples/`](examples) flows to go faster.
 
@@ -99,12 +108,17 @@ See `PLAN.md` §2 for the transport contract and §3 for the full node catalogue
 
 1. In your own Node-RED, open **Manage palette → Install** and add
    `node-red-contrib-doover` (once published).
-2. Add a **doover-connection** config node, set its type to **Doover Cloud**, paste
-   a scoped API token, and pick your agent from the dropdown.
+2. Add a **doover-connection** config node, set its type to **Doover Cloud**, set
+   the **API base** (default `https://api.doover.com`), type the **agent id** of
+   the target device into the Agent field, and paste a scoped **API token** (stored
+   as a Node-RED credential). The Agent field is free-text today; a live agent
+   picker is planned Phase-2 polish (`PLAN.md` §2.2).
 3. Your existing flows can now read and write Doover tags and channels.
 
-Platform I/O and UI nodes are **local-only**; they error clearly when wired to a
-cloud connection.
+The palette currently ships the messaging nodes only — **doover tag in / get /
+out**, **doover channel in / out**, **doover aggregate get**, and **doover
+notify** — all of which work over either a local or a cloud connection. Platform
+I/O and UI nodes are later phases (`PLAN.md` §3) and are not in the palette yet.
 
 ---
 

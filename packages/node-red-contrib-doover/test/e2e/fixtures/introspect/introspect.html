@@ -1,0 +1,19 @@
+<!-- e2e-introspect: harness-only, never placed on a flow. Minimal registration
+     so Node-RED loads the module (and with it the admin endpoint). -->
+<script type="text/javascript">
+  RED.nodes.registerType("e2e-introspect", {
+    category: "config",
+    defaults: {},
+    label: function () {
+      return "e2e-introspect";
+    },
+  });
+</script>
+
+<script type="text/html" data-template-name="e2e-introspect">
+  <div class="form-row"></div>
+</script>
+
+<script type="text/html" data-help-name="e2e-introspect">
+  <p>Harness-only introspection helper. Not for use on flows.</p>
+</script>

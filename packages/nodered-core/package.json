@@ -19,6 +19,9 @@
     "@grpc/proto-loader": "^0.7.0",
     "doover-js": "^0.7.1"
   },
+  "devDependencies": {
+    "ws": "^7.5.10"
+  },
   "engines": {
     "node": ">=24"
   },

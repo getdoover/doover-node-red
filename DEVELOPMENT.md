@@ -1,99 +1,103 @@
-# Doover Application Template
+# Development
 
-This repository serves as a template for creating Doover applications.
+**Node-RED for Doover** is a hybrid repo: a pydoover device-app supervisor **at
+the repo root** (so Doover app CI finds `Dockerfile` + `doover_config.json` where
+it expects them) with the JavaScript palette and transport packages alongside it
+as npm workspaces.
 
-It provides a structured layout for application code, deployment configurations, simulators, and tests. The template is
-designed to simplify the development and deployment of Doover-compatible applications.
+This file is the quick orientation for contributors. The **full dev loop** — two
+toolchains, running a local Node-RED with the palette linked, the differential
+fuzzer, the e2e harness, the docker smoke test, and the simulator story — lives in
+**[`docs/development.md`](docs/development.md)**. The authoritative design is
+**[`PLAN.md`](PLAN.md)**; implementer reference material is under
+[`docs/reference/`](docs/reference).
 
-The basic structure of the repository is as follows:
-
-## Getting Started
+## Layout
 
 ```
-README.md             <-- App description
-DEVELOPMENT.md        <-- This file
-pyproject.toml        <-- Python project configuration file (including dependencies)
-Dockerfile            <-- Dockerfile for building the application image
-doover_config.json    <-- Generated config schema consumed by Doover
+README.md              <-- Orientation map
+DEVELOPMENT.md         <-- This file
+PLAN.md                <-- Authoritative design (source of truth)
+pyproject.toml         <-- Python supervisor project (uv)
+package.json           <-- npm workspaces root (JS packages)
+Dockerfile             <-- FROM nodered/node-red + Doover conventions
+doover_config.json     <-- Doover app definition + generated config_schema/ui_schema
 
-src/app_template/     <-- Application package
-  __init__.py         <-- Entry point: run_app(SampleApplication())
-  application.py      <-- Main application code (setup, main_loop, UI handlers)
-  app_config.py       <-- Config schema definition
-  app_tags.py         <-- Runtime state tag declarations
-  app_ui.py           <-- UI definition
-  app_state.py        <-- State machine (optional)
+src/doover_node_red/   <-- The pydoover supervisor package
+  __init__.py          <-- Entry point: run_app(NodeRedApplication())
+  application.py       <-- NodeRedApplication (setup, main_loop, UI handlers)
+  runner.py            <-- Spawns/supervises the Node-RED child, builds its env,
+                           renders settings.js, manages the credential secret
+  app_config.py        <-- Config schema (config.Schema)
+  app_tags.py          <-- Runtime state tags
+  app_ui.py            <-- Doover UI definition
 
-simulators/
-  app_config.json     <-- Sample configuration injected into the app when running locally
-  docker-compose.yml  <-- Docker Compose stack (device agent + simulator + app)
-  sample/             <-- Example simulator image
+packages/
+  nodered-core/            <-- @doover/nodered-core: transport + tag layer (no Node-RED dep)
+  node-red-contrib-doover/ <-- the palette: nodes/ + editor HTML + test/ + examples/
 
-tests/
-  test_imports.py     <-- Smoke tests for the application
+settings/                  <-- Node-RED settings.js template (rendered by runner.py)
+simulators/                <-- docker-compose stack (device agent + this app)
+examples/                  <-- importable example flows (mirrored into the palette pkg)
+tools/                     <-- differential fuzzer + docker smoke test
+tests/                     <-- pytest suite for the supervisor
 ```
 
-The `doover_config.json` file is the Doover configuration file for the application.
+There is **no `app_state.py`** and no `SampleApplication` — the supervisor is a
+single `NodeRedApplication`. The Python package is `src/doover_node_red/`, wired to
+the `doover-app-run` / `export-config` / `export-ui` entry points in
+`pyproject.toml`.
 
-It defines all metadata about the application, including name, short and long description,
-dependent apps, image name, owner organisation, container registry and more. Two sections —
-`config_schema` and `ui_schema` — are generated from Python. Do not edit them by hand.
-Regenerate after any change to `app_config.py` or `app_ui.py`:
+## Two toolchains
+
+**JavaScript (palette + core)** — Node.js 24, npm 11, npm **workspaces**. Plain
+CommonJS, JSDoc for types, **no TypeScript and no build step** (Node-RED loads
+`.js`/`.html` as-is).
 
 ```bash
-uv run export-config   # writes the config_schema block
-uv run export-ui       # writes the ui_schema block (required for publishing)
+npm install                                # installs every workspace + dev deps
+npm test                                   # runs each workspace's tests (node --test)
+npm test --workspace @doover/nodered-core  # just the core
+npm run fuzz:differential                  # diff/tags parity vs the pydoover reference
 ```
 
-The app will fail to publish if `ui_schema` is missing, so make sure both are run and
-committed after editing the UI.
+`npm run fuzz:differential` runs `tools/differential/run.js`: it generates seeded
+cases, runs the ported JS (`packages/nodered-core/lib/{diff,tags}.js`) and the
+pydoover reference (`tools/differential/py-driver.py`, spawned via `uv`), and
+deep-compares them. **pydoover is the contract** — any mismatch is a JS-side bug.
+A live Node-RED e2e harness is being built under
+`packages/node-red-contrib-doover/test/e2e/` (helpers and a fake-DDA server today,
+no runnable suite wired yet); the docker smoke test lives at
+`tools/docker-smoke/run-smoke.sh`. See [`docs/development.md`](docs/development.md)
+for both.
+
+**Python (device-app supervisor)** — [uv](https://docs.astral.sh/uv/) + pydoover
+1.0.
+
+```bash
+uv run pytest tests -v          # run the Python test suite
+uv run export-config            # write config_schema into doover_config.json
+uv run export-ui                # write ui_schema into doover_config.json (required to publish)
+doover app run                  # run the supervisor + device agent via docker-compose
+```
+
+The `config_schema` and `ui_schema` blocks in `doover_config.json` are generated
+from `app_config.py` / `app_ui.py`. **Do not hand-edit them.** Re-run both
+`export-config` and `export-ui` after any change and commit the result — the app
+fails to publish if `ui_schema` is missing.
 
 ### Prerequisites
 
-- Docker and Docker Compose
-- Python 3.11 or later (if running locally)
-- [uv](https://docs.astral.sh/uv/) for managing Python dependencies
-- The Doover CLI (`doover`)
-
-### Running Locally
-
-Run the application alongside the sample simulator:
-
-```bash
-doover app run
-```
-
-This runs `docker compose up` in `simulators/`.
-
-## Simulators
-
-The `simulators/` directory contains tooling for running the application without real hardware:
-
-- `app_config.json`: Sample configuration injected into the app at startup via `CONFIG_FP`.
-- `docker-compose.yml`: Defines the device agent, simulator, and application services.
-- `sample/`: A minimal simulator that publishes a `random_value` tag for the main app to consume.
-
-## Testing
-
-Run the test suite:
-
-```bash
-uv run pytest tests -v
-```
+- **Node.js 24** and **npm 11** (the JS packages are workspaces of the repo root).
+- **[uv](https://docs.astral.sh/uv/)** and Python ≥ 3.11 for the supervisor.
+- **Docker + Docker Compose** for `doover app run`, the image build, and the smoke test.
+- The **Doover CLI** (`doover`) for `doover app run` / `doover app publish`.
 
 ## Publishing
-
-Once your app is ready to publish:
 
 ```bash
 doover app publish --profile dv2
 ```
 
-## Customisation
-
-To make this template your own:
-
-1. Rename the `src/app_template/` package and update `pyproject.toml` scripts.
-2. Update `app_config.py`, `app_tags.py`, `app_ui.py`, and `application.py` to match your domain.
-3. Adjust the simulator under `simulators/sample/` (or remove it if not needed).
-4. Regenerate `doover_config.json` with `uv run export-config && uv run export-ui`.
+Run `export-config` + `export-ui` and commit first — publishing consumes the
+generated blocks in `doover_config.json`.

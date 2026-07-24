@@ -25,6 +25,15 @@ module.exports = {
     // ---- HTTP / editor -----------------------------------------------------
     uiPort: __NODE_RED_PORT__,
 
+    // Bind the editor + admin API + HTTP-in nodes to loopback only. There is no
+    // adminAuth yet, so an all-interfaces (0.0.0.0) bind would expose the
+    // unauthenticated editor — full-deploy / arbitrary-code-execution — to any
+    // LAN peer, sibling container, or an inadvertent `-p 1880` publish. The editor
+    // is reached only via localhost / the future Doover tunnel, both of which hit
+    // 127.0.0.1, so loopback is the correct interim control (PLAN 4.4). The
+    // in-container healthcheck and smoke test also curl 127.0.0.1:1880.
+    uiHost: "127.0.0.1",
+
     // Admin (editor + admin API) mount point.
     httpAdminRoot: __ADMIN_ROOT__,
     // HTTP-in nodes are served under /api to avoid clashing with the editor.
@@ -37,12 +46,18 @@ module.exports = {
     // ---- External modules --------------------------------------------------
     // Allow the pre-installed Doover palette (and any configured extra palette
     // packages) to be managed from the editor's palette manager; block ad-hoc
-    // installs otherwise.
+    // installs otherwise. The SAME allowlist is applied to BOTH the Palette
+    // Manager (palette.allowList) and function-node external requires
+    // (modules.allowList) — without palette.allowList the Palette Manager would
+    // honour no allowlist and could install any public-npm package (supply-chain
+    // RCE via install scripts / node load), contradicting the "block ad-hoc
+    // installs" intent above.
     externalModules: {
         autoInstall: false,
         palette: {
             allowInstall: true,
             allowUpload: false,
+            allowList: __EXTERNAL_MODULES_ALLOWLIST__,
         },
         modules: {
             allowInstall: true,

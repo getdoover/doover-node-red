@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "fuzz:differential": "node tools/differential/run.js --count 5000 --max-mismatch 0"
   },
   "engines": {
     "node": ">=24"

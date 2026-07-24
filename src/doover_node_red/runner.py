@@ -109,14 +109,27 @@ def _load_or_create_secret(user_dir: str) -> str:
     """Return a stable credential secret persisted under ``user_dir``.
 
     Reads the secret from :data:`CREDENTIAL_SECRET_FILENAME` if present, otherwise
-    generates one and writes it (best-effort, mode 0600) so it is reused on every
-    subsequent boot. This keeps Node-RED able to decrypt ``flows_cred.json`` across
-    restarts when no ``credential_secret`` is configured.
+    generates one and writes it (0600) so it is reused on every subsequent boot.
+    This keeps Node-RED able to decrypt ``flows_cred.json`` across restarts when no
+    ``credential_secret`` is configured.
+
+    The secret file is the fleet-shared flow-credential encryption key, so its
+    permissions are enforced on both paths: an existing file is tightened to 0600
+    before its contents are trusted (a file cloned from a template /data may arrive
+    world/group-readable), and a freshly generated file is created atomically with
+    0600 (never written world-readable and chmod'd afterwards).
     """
     path = Path(user_dir) / CREDENTIAL_SECRET_FILENAME
     try:
         existing = path.read_text().strip()
         if existing:
+            # Tighten perms on a pre-existing (possibly loosely-permissioned)
+            # secret before returning it, so a cloned/restored 0644 file is not
+            # left exposing the fleet credential key.
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
             return existing
     except OSError:
         pass
@@ -124,11 +137,27 @@ def _load_or_create_secret(user_dir: str) -> str:
     secret = secrets.token_hex(32)
     try:
         Path(user_dir).mkdir(parents=True, exist_ok=True)
-        path.write_text(secret)
+        # Create atomically with restrictive perms (O_EXCL + 0600) so the secret
+        # is never observable at the process umask (typically 0644) during the
+        # write window. If the file was created concurrently, fall back to reading
+        # it (and tightening its mode).
         try:
-            os.chmod(path, 0o600)
-        except OSError:
-            pass
+            fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            existing = path.read_text().strip()
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
+            if existing:
+                return existing
+            fd = os.open(str(path), os.O_WRONLY | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, secret.encode("utf-8"))
+        finally:
+            os.close(fd)
+        # Enforce mode even if the file pre-existed with a looser umask-derived mode.
+        os.chmod(path, 0o600)
         log.info(
             "No credential_secret configured; generated and persisted one at %s.",
             path,
@@ -144,14 +173,102 @@ def _load_or_create_secret(user_dir: str) -> str:
     return secret
 
 
+# Environment variables the Node-RED child process legitimately needs, inherited
+# from the supervisor process. The child env is built from THIS allowlist only —
+# not a copy of the whole os.environ — so platform-injected secrets/tokens present
+# in the supervisor container are never handed to flow code (Function nodes can
+# read process.env / env.get / ${VAR}).
+_ENV_PASSTHROUGH = frozenset(
+    {
+        # Process basics required for Node/npm to run.
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "LANG",
+        "LC_ALL",
+        "TERM",
+        "TZ",
+        "TMPDIR",
+        # Node runtime knobs (NODE_OPTIONS is re-derived below for the mem cap).
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "NODE_ENV",
+        "NODE_RED_HOME",
+        # Doover local-transport / palette auto-discovery (dooverjs-transport):
+        # the local web API on 127.0.0.1:49100 needs no token, just these.
+        "APP_KEY",
+        "AGENT_ID",
+        "DDA_URI",
+        "DDA_WEB_URI",
+        "PLT_URI",
+        "MODBUS_URI",
+        # settings.js reads this for the Node-RED console log level.
+        "DOOVER_LOG_LEVEL",
+    }
+)
+
+# flow_env is user-controlled config. These names/prefixes are refused so a
+# flow_env entry can never override a supervisor control var (DOOVER_*), the
+# memory cap / loader (NODE_OPTIONS, LD_*), PATH, the transport discovery vars, or
+# a shell-injection vector (IFS, BASH_ENV, ENV). Comparison is case-insensitive so
+# a lowercased spelling can't slip a reserved name past the filter.
+_ENV_RESERVED_PREFIXES = ("DOOVER_", "NODE_", "LD_")
+_ENV_RESERVED_NAMES = frozenset(
+    {
+        "PATH",
+        "HOME",
+        "TZ",
+        "APP_KEY",
+        "AGENT_ID",
+        "DDA_URI",
+        "DDA_WEB_URI",
+        "PLT_URI",
+        "MODBUS_URI",
+        "IFS",
+        "ENV",
+        "BASH_ENV",
+    }
+)
+
+
+def _is_allowed_flow_env_key(key: str) -> bool:
+    """Return True if ``key`` is safe to accept from user-supplied ``flow_env``."""
+    ku = key.upper()
+    if ku in _ENV_RESERVED_NAMES:
+        return False
+    return not any(ku.startswith(p) for p in _ENV_RESERVED_PREFIXES)
+
+
 def build_child_env(config: dict, *, user_dir: str = DEFAULT_USER_DIR) -> dict:
     """Return the environment for the Node-RED child process.
 
-    Passes the credential secret, editor-disable flag, timezone, memory cap and
-    any user-supplied ``flow_env`` values (as plain env vars for ${VAR} refs).
+    Built from an explicit allowlist of the supervisor's own environment (never a
+    full copy of ``os.environ``), plus the credential secret, editor-disable flag,
+    timezone, memory cap and any *filtered* user-supplied ``flow_env`` values (as
+    plain env vars for ${VAR} refs).
     """
-    env = dict(os.environ)
+    src = os.environ
+    env = {k: src[k] for k in _ENV_PASSTHROUGH if k in src}
 
+    # Apply user-supplied flow_env FIRST and filtered, so it can never win over
+    # the supervisor's own control vars set below (a flow_env entry colliding with
+    # a reserved name is dropped, not allowed to override it).
+    flow_env = config.get("flow_env") or {}
+    if isinstance(flow_env, dict):
+        for k, v in flow_env.items():
+            if v is None:
+                continue
+            key = str(k)
+            if not _is_allowed_flow_env_key(key):
+                log.warning(
+                    "Ignoring reserved flow_env key %r (reserved for supervisor use).",
+                    key,
+                )
+                continue
+            env[key] = str(v)
+
+    # ---- Supervisor-controlled vars: set AFTER flow_env so they always win ----
     secret = (config.get("credential_secret") or "").strip()
     if not secret:
         # No configured secret: reuse a persisted per-device secret so credentials
@@ -173,14 +290,6 @@ def build_child_env(config: dict, *, user_dir: str = DEFAULT_USER_DIR) -> dict:
         heap_opt = f"--max-old-space-size={int(mem)}"
         existing = env.get("NODE_OPTIONS", "").strip()
         env["NODE_OPTIONS"] = f"{existing} {heap_opt}".strip() if existing else heap_opt
-
-    # flow_env values become plain env vars referenced from node config.
-    flow_env = config.get("flow_env") or {}
-    if isinstance(flow_env, dict):
-        for k, v in flow_env.items():
-            if v is None:
-                continue
-            env[str(k)] = str(v)
 
     return env
 
@@ -208,6 +317,11 @@ async def install_palette_packages(
         "--no-fund",
         "--prefix",
         str(user_dir),
+        # End-of-options separator: everything after "--" is treated by npm as a
+        # positional package specifier, never a flag. Without it a package entry
+        # beginning with "-" (e.g. "--registry=http://attacker/") is parsed as an
+        # option, redirecting the whole install (argument injection).
+        "--",
         *pkgs,
     ]
     log.info("Installing extra palette packages: %s", ", ".join(pkgs))
@@ -266,6 +380,11 @@ class NodeRedRunner:
         self._proc: asyncio.subprocess.Process | None = None
         self._task: asyncio.Task | None = None
         self._stopping = False
+        # Set by restart() so the supervise loop can tell a deliberate,
+        # config-driven reconfigure (re-render settings + relaunch) apart from a
+        # genuine crash. Only crashes increment restart_count — a reconfigure is
+        # not a fault and must not inflate the operator-facing "Restarts" count.
+        self._deliberate_restart = False
 
     @property
     def pid(self) -> int | None:
@@ -341,10 +460,13 @@ class NodeRedRunner:
         proc = self._proc
         if proc and proc.returncode is None:
             log.info("Restarting Node-RED to apply config change (pid=%s)", proc.pid)
+            # Flag this as a deliberate restart so _supervise() does not count it
+            # as a crash toward restart_count.
+            self._deliberate_restart = True
             try:
                 proc.terminate()
             except ProcessLookupError:
-                pass
+                self._deliberate_restart = False
 
     async def _spawn(self) -> asyncio.subprocess.Process:
         env = build_child_env(self.config, user_dir=self.user_dir)
@@ -364,7 +486,6 @@ class NodeRedRunner:
                 backoff = min(backoff * 2, _BACKOFF_MAX)
                 continue
 
-            self.restart_count += 1
             self._set_state(RuntimeState.RUNNING)
             started = asyncio.get_event_loop().time()
 
@@ -375,14 +496,29 @@ class NodeRedRunner:
                 self._set_state(RuntimeState.STOPPED)
                 break
 
-            log.warning(
-                "Node-RED exited (code=%s) after %.1fs; restarting.",
-                returncode,
-                uptime,
-            )
-            if uptime >= _STABLE_UPTIME:
-                backoff = _BACKOFF_MIN  # was stable, reset backoff
+            if self._deliberate_restart:
+                # A config-driven reconfigure (apply_config -> restart), not a
+                # crash. Reset backoff and do NOT count it as a restart so a
+                # healthy device that only ever reconfigured still reports 0.
+                self._deliberate_restart = False
+                backoff = _BACKOFF_MIN
+                log.info(
+                    "Node-RED stopped (code=%s) for a config reconfigure; relaunching.",
+                    returncode,
+                )
+            else:
+                log.warning(
+                    "Node-RED exited (code=%s) after %.1fs; restarting.",
+                    returncode,
+                    uptime,
+                )
+                if uptime >= _STABLE_UPTIME:
+                    backoff = _BACKOFF_MIN  # was stable, reset backoff
 
+                # Count only genuine respawns, not the initial (healthy) spawn nor
+                # a deliberate reconfigure — a clean first boot that never crashed
+                # must report 0 restarts, not 1.
+                self.restart_count += 1
             self._set_state(RuntimeState.RESTARTING)
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, _BACKOFF_MAX)

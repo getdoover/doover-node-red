@@ -89,7 +89,11 @@ module.exports = function (RED) {
       return;
     }
 
-    const detachStatus = statusForTransport(node, transport);
+    // No-op until we attach the transport status follower. When the node is
+    // misconfigured (no channel) we deliberately DON'T attach it: the red
+    // "no channel" config-error status must take precedence permanently, and a
+    // status follower would overwrite it green the moment the transport connects.
+    let detachStatus = function () {};
     let unsubscribe = null;
     let onStatus = null;
     // Set in the close handler; guards work that resolves after teardown (an
@@ -100,8 +104,19 @@ module.exports = function (RED) {
       node.status({ fill: "red", shape: "ring", text: "no channel" });
       node.error("doover channel in: no channel configured.");
     } else {
+      detachStatus = statusForTransport(node, transport);
       try {
         unsubscribe = transport.subscribe(node.channel, function (m) {
+          // Skip the client-synthesised "sync" event: it carries the full
+          // channel aggregate and is (re-)delivered on every subscribe and on
+          // every gateway reconnect/resync. Forwarding it would emit the whole
+          // aggregate as a message on connect even when emitAggregateOnConnect
+          // is off, and re-emit it on each reconnect. The opt-in initial
+          // aggregate is handled explicitly by the emitAggregateOnConnect path
+          // below (once, via getAggregate).
+          if (m && m.event === "sync") {
+            return;
+          }
           node.send({
             payload: m.payload,
             topic: node.channel,
@@ -233,6 +248,16 @@ module.exports = function (RED) {
     // Set in the close handler; guards post-await status work (an in-flight
     // publish resolving after the node is torn down during a redeploy).
     let closed = false;
+
+    // One-shot mode delivers an ephemeral value that is neither merged into the
+    // aggregate nor logged, so "Record in history" and "Max age" have no effect.
+    // Warn once at deploy rather than silently dropping the operator's choice.
+    if (node.oneShot && (node.recordLog || node.maxAge !== undefined)) {
+      node.warn(
+        "doover channel out: one-shot mode ignores 'Record in history' and " +
+          "'Max age' (those apply only to aggregate publishes)."
+      );
+    }
 
     node.on("input", async function (msg, send, done) {
       const channel = node.channel || msg.topic;

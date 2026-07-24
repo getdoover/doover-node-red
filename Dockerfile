@@ -26,10 +26,18 @@ USER root
 COPY packages/ /opt/doover/packages/
 
 # Install the palette + its @doover/nodered-core dependency into the Node-RED
-# userDir so the palette is available with zero user action. Installing local
-# paths vendors them into /data/node_modules.
+# userDir so the palette is available with zero user action.
+#
+# --install-links is REQUIRED: without it, `npm install <local-path>` installs
+# each package as a SYMLINK into /opt/doover/packages/... . The final image does
+# not copy /opt/doover/packages, so those symlinks dangle — the palette fails to
+# load and none of the Doover node types register. Worse, a mapped /data volume
+# would carry the dangling links. --install-links instead copies the local
+# packages (and installs their transitive deps: @grpc, doover-js, protobufjs, …)
+# as real files under /data/node_modules, making the userDir fully
+# self-contained so the palette survives being copied into a mounted volume.
 WORKDIR /data
-RUN npm install --omit=dev --no-audit --no-fund \
+RUN npm install --omit=dev --install-links --no-audit --no-fund \
         /opt/doover/packages/nodered-core \
         /opt/doover/packages/node-red-contrib-doover \
     && chown -R node-red:node-red /data

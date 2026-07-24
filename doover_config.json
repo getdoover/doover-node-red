@@ -85,13 +85,13 @@
                 "flow_package": {
                     "title": "Flow Package",
                     "x-name": "flow_package",
-                    "x-hidden": false,
+                    "x-hidden": true,
                     "type": [
                         "string",
                         "null"
                     ],
                     "x-required": false,
-                    "description": "Pinned flow package as 'name@version' (or 'latest') for fleet mode. Leave blank for dev mode (live per-deploy channel sync).",
+                    "description": "EXPERIMENTAL / not yet implemented. Pinned flow package as 'name@version' (or 'latest') for fleet mode. Hidden until the supervisor's fetch/install/load apply-loop ships \u2014 setting it currently only echoes the value to the applied-package status tag; no package is fetched, installed or loaded. Leave blank for dev mode.",
                     "default": "",
                     "x-position": 4
                 },
@@ -180,12 +180,12 @@
                 "last_deploy_time": {
                     "name": "last_deploy_time",
                     "type": "uiVariable",
-                    "displayString": "Last Deploy (epoch)",
+                    "displayString": "Last Deploy",
                     "showActivity": true,
                     "position": 52,
                     "hidden": false,
-                    "varType": "float",
-                    "currentValue": "$tag.app().last_deploy_time:number:0"
+                    "varType": "string",
+                    "currentValue": "$tag.app().last_deploy_time:string:\"never\""
                 },
                 "memory_mb": {
                     "name": "memory_mb",

@@ -19,7 +19,8 @@
     }
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "e2e": "node test/e2e/run-e2e.js"
   },
   "dependencies": {
     "@doover/nodered-core": "^0.1.0"

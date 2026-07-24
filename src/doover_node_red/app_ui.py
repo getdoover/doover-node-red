@@ -19,8 +19,8 @@ class NodeRedUI(ui.UI):
         value=NodeRedTags.runtime_state,
         name="runtime_state",
     )
-    last_deploy_time = ui.NumericVariable(
-        "Last Deploy (epoch)",
+    last_deploy_time = ui.TextVariable(
+        "Last Deploy",
         value=NodeRedTags.last_deploy_time,
         name="last_deploy_time",
     )

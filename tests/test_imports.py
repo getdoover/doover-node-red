@@ -50,6 +50,10 @@ def test_config_schema():
     assert "enum" in props["editor_access"]
     # extra_palette_packages is an array.
     assert props["extra_palette_packages"]["type"][0] == "array"
+    # flow_package has no working apply-loop yet, so it is hidden + flagged
+    # EXPERIMENTAL like its unimplemented siblings (not shown as functional).
+    assert props["flow_package"]["x-hidden"] is True
+    assert "not yet implemented" in props["flow_package"]["description"].lower()
 
 
 def test_tags():
@@ -90,6 +94,9 @@ def test_ui_export(tmp_path):
     assert "runtime_state" in children
     assert "open_editor" in children
     assert "node_red" in children
+    # Last-deploy is a human-readable text variable ("never" / local datetime),
+    # not a raw-epoch numeric variable.
+    assert children["last_deploy_time"]["varType"] == "string"
 
 
 def test_render_settings(tmp_path):

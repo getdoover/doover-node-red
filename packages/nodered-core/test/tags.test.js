@@ -324,3 +324,159 @@ test("log option maps to recordLog on the underlying publish", async () => {
   await tags.setTag("x", 1, { log: true });
   assert.equal(seenOpts.recordLog, true);
 });
+
+// --- namespace (app key) validation ordering --------------------------------
+// The app-key namespace becomes a real path segment and must pass the same
+// charset check as any user segment; an empty or malformed otherApp app key
+// must be rejected loudly, not silently dead-end reads/writes at a phantom
+// namespace.
+
+test("an empty appKey namespace is rejected, not silently used as a segment", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  await assert.rejects(() => tags.setTag("x", 1, { appKey: "" }), /app key/i);
+  await assert.rejects(() => tags.getTag("x", { appKey: "" }), /app key/i);
+  await assert.rejects(
+    () => tags.setTag("x", 1, { appKey: "bad key" }),
+    /app key/i
+  );
+  // A well-formed app key of course still works.
+  await tags.setTag("x", 1, { appKey: "cu_other_1" });
+  assert.deepEqual(await t.getAggregate("tag_values"), {
+    cu_other_1: { x: 1 },
+  });
+});
+
+// --- writing undefined is a loud error, never a silent no-op ------------------
+
+test("writing undefined throws (does not silently corrupt the cache)", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  await assert.rejects(() => tags.setTag("x", undefined), /undefined/);
+  await assert.rejects(() => tags.setTags({ a: 1, b: undefined }), /undefined/);
+  // nothing was written
+  assert.equal(await t.getAggregate("tag_values"), null);
+});
+
+// --- clone-on-emit: delivered values are isolated from the internal cache -----
+
+test("getTag returns a clone; mutating it cannot corrupt the cache", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  await tags.setTag("cfg", { nested: { n: 1 } });
+  const v = await tags.getTag("cfg");
+  v.nested.n = 999; // consumer mutates the returned value
+  const again = await tags.getTag("cfg");
+  assert.deepEqual(again, { nested: { n: 1 } }, "cache must be untouched");
+});
+
+test("a subscriber mutating a delivered nested value cannot corrupt the cache", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  const writer = new TagClient(t);
+  const prevSeen = [];
+  tags.subscribeTag("obj", (nv, pv) => {
+    prevSeen.push(pv);
+    if (nv && typeof nv === "object") {
+      nv.n = 999; // hostile mutation of the delivered value
+    }
+  });
+  await writer.setTag("obj", { n: 1 });
+  await tick();
+  await writer.setTag("obj.m", 2); // triggers a second fire
+  await tick();
+  // The prevValue on the second fire must be the un-corrupted {n:1}, proving the
+  // subscriber's mutation did not leak into the internal aggregate cache.
+  assert.deepEqual(prevSeen[1], { n: 1 });
+});
+
+// --- per-subscriber error isolation on strict coercion -----------------------
+
+test("a strict-coerce failure on one sub does not abort delivery to siblings", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  const writer = new TagClient(t);
+  let goodFired = 0;
+  // 'bad' demands a strict integer but will receive a string -> coerce throws.
+  tags.subscribeTag("bad", () => {}, { type: "integer", strict: true });
+  tags.subscribeTag("good", () => {
+    goodFired++;
+  });
+  // One atomic aggregate update changes both tags.
+  await writer.setTags({ bad: "not-an-int", good: 5 });
+  await tick();
+  assert.equal(goodFired, 1, "sibling subscriber must still fire");
+});
+
+// --- coerce fidelity to pydoover (no truncation, no re-typing) ----------------
+
+test("integer coercion does not truncate a non-integer float (pydoover parity)", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  await tags.setTag("f", 3.7);
+  assert.equal(await tags.getTag("f", { type: "integer" }), 3.7);
+});
+
+test("number/string coercion leaves foreign-typed values untouched", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  await tags.setTag("n", 5);
+  assert.equal(await tags.getTag("n", { type: "string" }), 5); // not "5"
+  await tags.setTag("s", "hi");
+  assert.equal(await tags.getTag("s", { type: "number" }), "hi"); // not NaN/0
+});
+
+// --- live one-shot non-finite value guard ------------------------------------
+
+test("a live write of NaN/Infinity is rejected instead of silently nulled", async () => {
+  const t = new MockTransport({ autoConnect: true, appKey: "app" });
+  const tags = new TagClient(t);
+  await assert.rejects(
+    () => tags.setTag("v", NaN, { live: true }),
+    /NaN\/Infinity/
+  );
+  await assert.rejects(
+    () => tags.setTag("v", Infinity, { live: true }),
+    /NaN\/Infinity/
+  );
+  await assert.rejects(
+    () => tags.setTag("v", { a: [1, -Infinity] }, { live: true }),
+    /NaN\/Infinity/
+  );
+});
+
+// --- _currentValues must not clobber a fresher aggregate that lands mid-await --
+
+test("_currentValues prefers a sync that lands during the getAggregate await", async () => {
+  // A minimal transport whose initial sync is asynchronous (real transports
+  // seed via a stream, unlike MockTransport's synchronous initial sync): the
+  // fresher `sync` fires DURING the in-flight getAggregate, and its value must
+  // win over the staler REST snapshot the fetch returns.
+  let onMsg = null;
+  const racy = {
+    appKey: () => "app",
+    status: () => "connected",
+    subscribe(_ch, cb) {
+      onMsg = cb;
+      return () => {
+        onMsg = null;
+      };
+    },
+    async getAggregate(ch) {
+      // A fresher aggregate arrives while this fetch is "in flight".
+      if (onMsg) {
+        onMsg({
+          channel: ch,
+          event: "sync",
+          aggregate: { app: { x: 2 } },
+          payload: { app: { x: 2 } },
+        });
+      }
+      return { app: { x: 1 } }; // staler snapshot
+    },
+  };
+  const tags = new TagClient(/** @type {any} */ (racy));
+  // Activate the channel subscription so the sync can be delivered.
+  tags.subscribeTag("x", () => {});
+  assert.equal(await tags.getTag("x"), 2, "must not clobber back to the stale 1");
+});
