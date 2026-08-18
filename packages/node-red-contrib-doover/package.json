@@ -9,17 +9,13 @@
   "node-red": {
     "nodes": {
       "doover-connection": "nodes/doover-connection.js",
-      "doover-tag-in": "nodes/tags.js",
-      "doover-tag-get": "nodes/tags.js",
-      "doover-tag-out": "nodes/tags.js",
-      "doover-channel-in": "nodes/channels.js",
-      "doover-channel-out": "nodes/channels.js",
-      "doover-aggregate-get": "nodes/channels.js",
+      "doover-tags": "nodes/tags.js",
+      "doover-channels": "nodes/channels.js",
       "doover-notify": "nodes/notify.js"
     }
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.js",
     "e2e": "node test/e2e/run-e2e.js"
   },
   "dependencies": {
@@ -30,7 +26,7 @@
     "node-red-node-test-helper": "^0.3.4"
   },
   "engines": {
-    "node": ">=24"
+    "node": ">=22"
   },
   "license": "MIT"
 }

@@ -127,6 +127,13 @@ class NodeRedApplication(Application):
     def _config_snapshot(self) -> dict:
         """Collect the deployment-config values the runner needs into a dict."""
         c = self.config
+        # pydoover's Object config treats an explicitly empty mapping as unset
+        # and raises from `.value`.  Empty is the documented/default flow_env,
+        # so normalize that case instead of restarting the reporting app.
+        try:
+            flow_env = c.flow_env.value
+        except ValueError:
+            flow_env = {}
         return {
             "editor_enabled": c.editor_enabled.value,
             "editor_access": c.editor_access.value,
@@ -134,7 +141,7 @@ class NodeRedApplication(Application):
             "flows_sync_enabled": c.flows_sync_enabled.value,
             "flow_package": c.flow_package.value,
             "credential_secret": c.credential_secret.value,
-            "flow_env": c.flow_env.value,
+            "flow_env": flow_env,
             "memory_limit_mb": c.memory_limit_mb.value,
             "timezone": c.timezone.value,
         }

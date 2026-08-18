@@ -1,17 +1,8 @@
 services:
-  device_agent:
-    image: spaneng/doover-device-agent:main
-    network_mode: host
-
   node_red_application:
     build: ../
     network_mode: host
     restart: unless-stopped
-    depends_on:
-      - device_agent
     environment:
       - APP_KEY=test_app_key
       - CONFIG_FP=/opt/doover/app_config.json
-    volumes:
-      # The supervisor image doesn't ship the repo; mount the local dev config.
-      - ./app_config.json:/opt/doover/app_config.json:ro

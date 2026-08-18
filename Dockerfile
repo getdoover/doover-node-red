@@ -94,6 +94,12 @@ COPY --from=py_builder /opt/doover/supervisor /opt/doover/supervisor
 # Node-RED settings template consumed by the supervisor at startup.
 COPY settings/ /opt/doover/settings/
 
+# Development config used by `doover app run`.  This must be inside the image:
+# with a remote Docker daemon a bind mount is resolved on the Doovit rather than
+# on the developer laptop, turning a missing source path into a directory.
+# Production deployments do not set CONFIG_FP to this path and are unaffected.
+COPY simulators/app_config.json /opt/doover/app_config.json
+
 # Pre-installed Doover palette in the Node-RED userDir.
 COPY --from=palette_builder --chown=node-red:node-red /data /data
 

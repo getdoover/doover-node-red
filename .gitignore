@@ -16,6 +16,15 @@ eggs/
 .eggs/
 lib/
 lib64/
+# JavaScript package sources use conventional `lib/` directories.  The rule
+# above comes from Python's standard ignore template, so explicitly keep the
+# runtime implementations and E2E helpers tracked.
+!packages/nodered-core/lib/
+!packages/nodered-core/lib/**
+!packages/node-red-contrib-doover/lib/
+!packages/node-red-contrib-doover/lib/**
+!packages/node-red-contrib-doover/test/e2e/lib/
+!packages/node-red-contrib-doover/test/e2e/lib/**
 parts/
 sdist/
 var/

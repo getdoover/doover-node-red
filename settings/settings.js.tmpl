@@ -29,10 +29,10 @@ module.exports = {
     // adminAuth yet, so an all-interfaces (0.0.0.0) bind would expose the
     // unauthenticated editor — full-deploy / arbitrary-code-execution — to any
     // LAN peer, sibling container, or an inadvertent `-p 1880` publish. The editor
-    // is reached only via localhost / the future Doover tunnel, both of which hit
-    // 127.0.0.1, so loopback is the correct interim control (PLAN 4.4). The
-    // in-container healthcheck and smoke test also curl 127.0.0.1:1880.
-    uiHost: "127.0.0.1",
+    // Bind the editor on the Doovit's network interfaces for direct LAN access.
+    // The device firewall controls reachability; add adminAuth before exposing
+    // port 1880 beyond a trusted network.
+    uiHost: "0.0.0.0",
 
     // Admin (editor + admin API) mount point.
     httpAdminRoot: __ADMIN_ROOT__,
