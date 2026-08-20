@@ -8,10 +8,8 @@
  * rides on any transport.
  *
  * Transports:
- * - {@link DooverJsLocalTransport} — **the default local transport.** Wraps
- *   doover-js `LocalAgentClient` over the dda-agent's local REST+WebSocket web
- *   API (port 49100). Base URL from `$DDA_WEB_URI` (default
- *   `http://127.0.0.1:49100`).
+ * - {@link GrpcWebTransport} — **the default local transport.** Speaks the
+ *   dda-agent's protobuf API through its HTTPS gRPC-Web mount on port 49100.
  * - {@link DooverJsCloudTransport} — cloud transport. Wraps doover-js
  *   `DooverClient`, scoped to a configured target agent id.
  * - {@link LocalTransport} — PARKED legacy gRPC path (port 50051). Retained and
@@ -30,6 +28,11 @@ const {
 } = require("./lib/dooverjs-transport");
 const { LocalTransport } = require("./lib/local-transport");
 const {
+  GrpcWebTransport,
+  GrpcWebClient,
+  DEFAULT_GRPC_WEB_BASE_URL,
+} = require("./lib/grpc-web-transport");
+const {
   TagClient,
   TAG_CHANNEL_NAME,
   LIVE_TAG_CHANNEL_NAME,
@@ -46,8 +49,10 @@ module.exports = {
   DooverJsTransport,
   DooverJsLocalTransport,
   DooverJsCloudTransport,
-  // The documented default local transport is the doover-js one.
-  DefaultLocalTransport: DooverJsLocalTransport,
+  // Local DDA transport over the web listener's /grpc mount.
+  GrpcWebTransport,
+  GrpcWebClient,
+  DefaultLocalTransport: GrpcWebTransport,
   // PARKED legacy gRPC transport (kept, not default).
   LocalTransportGrpc: LocalTransport,
   LocalTransport,
@@ -59,6 +64,7 @@ module.exports = {
   DEFAULT_MAX_AGE_SECS,
   DEFAULT_WEB_BASE_URL,
   CLOUD_DEFAULTS,
+  DEFAULT_GRPC_WEB_BASE_URL,
   // diff / struct / validation helpers
   applyDiff,
   generateDiff,

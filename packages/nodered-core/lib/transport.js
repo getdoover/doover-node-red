@@ -6,6 +6,11 @@ const { EventEmitter } = require("node:events");
 class DooverTransport extends EventEmitter {
   constructor({ agentId = null, appKey = null } = {}) {
     super();
+    // EventEmitter treats an unhandled `error` event as an uncaught exception.
+    // Transports do asynchronous subscription work, so a connection failure
+    // must not take the whole Node-RED runtime down before a consumer attaches
+    // its UI/error listener.
+    this.on("error", () => {});
     this._agentId = agentId;
     this._appKey = appKey;
     this._status = "disconnected";

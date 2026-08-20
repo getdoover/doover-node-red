@@ -5,7 +5,7 @@
     - "This device (local)" is the default, zero-config connection — the detected
       agent id / app key are shown read-only (fetched from the identity admin
       endpoint). An optional advanced "Base URL" override points a standalone
-      Node-RED at a device's web API on the LAN (https://<device-ip>:49100).
+      Node-RED at a device's gRPC-Web API on the LAN.
     - "Doover Cloud" reads/writes a remote device via the Doover cloud: API base
       URL, target agent id, and an API token (stored as a Node-RED credential).
 -->
@@ -113,7 +113,8 @@
   <div class="form-row doover-local-row">
     <p style="color:#888; font-size:0.85em; margin-left:105px">
       No configuration needed — the device connection is detected from the
-      container environment (<code>APP_KEY</code>, <code>DDA_WEB_URI</code>).
+      container environment (<code>APP_KEY</code>,
+      <code>DDA_GRPC_WEB_URI</code>).
     </p>
   </div>
   <div class="form-row doover-local-row">
@@ -133,9 +134,9 @@
   </div>
   <div class="form-row doover-local-row doover-local-advanced">
     <p style="color:#888; font-size:0.85em; margin-left:105px">
-      Leave blank on-device (uses <code>DDA_WEB_URI</code>, default
-      <code>127.0.0.1:49100</code>). Set it to point a standalone Node-RED at a
-      device's agent web API over the LAN, e.g.
+      Leave blank on-device (default
+      <code>https://127.0.0.1:49100/grpc</code>). Set it to point a standalone
+      Node-RED at a device's gRPC-Web API over the LAN, e.g.
       <code>https://192.168.0.7:49100</code>.
     </p>
   </div>
@@ -170,14 +171,13 @@
   <dl class="message-properties">
     <dt>This device (local)</dt>
     <dd>
-      Default, zero-config. Connects to the on-device agent web API, auto-detected
-      from the container environment (<code>APP_KEY</code>,
-      <code>DDA_WEB_URI</code> — default <code>127.0.0.1:49100</code>). The
-      detected agent id and app key are shown read-only.
+      Default, zero-config. Connects to the on-device agent's protobuf API using
+      gRPC-Web at <code>https://127.0.0.1:49100/grpc</code>. The detected local
+      identity and app key are shown read-only.
       <br /><br />
       <b>Advanced — Base URL override.</b> Leave blank on a Doovit. To drive a
       device from a <i>standalone</i> Node-RED on the same network, set the base
-      URL to that device's agent web API, e.g.
+      URL to that device's gRPC-Web listener, e.g.
       <code>https://192.168.0.7:49100</code>.
     </dd>
     <dt>Doover Cloud</dt>

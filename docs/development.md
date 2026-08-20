@@ -161,13 +161,12 @@ doover app publish --profile dv2
 not hand-edit those blocks. Re-run both after any change to `src/…/app_config.py` or
 `app_ui.py`.
 
-The env vars the supervisor passes through to the Node-RED child for local
-transport auto-discovery (`runner._ENV_PASSTHROUGH`): `APP_KEY`, `AGENT_ID`, and
-`DDA_WEB_URI`. The active default transport is the **doover-js web-API transport**,
-which reads `DDA_WEB_URI` — the dda-agent's local REST + WebSocket web API, default
-`http://127.0.0.1:49100` (see `reference/dda-local-web-api.md`). The gRPC-era vars
-(`DDA_URI` `50051`, `PLT_URI` `50053`, `MODBUS_URI` `50054`) are still forwarded but
-belong to the **parked** gRPC `LocalTransport`, not the default path.
+The supervisor passes `APP_KEY`, `AGENT_ID`, `DDA_GRPC_WEB_URI` and
+`DDA_WEB_URI` through to the Node-RED child for local transport discovery. The
+active default is `GrpcWebTransport`, which uses the DDA's HTTPS gRPC-Web mount
+at `https://127.0.0.1:49100/grpc`. `DDA_GRPC_WEB_URI` can override it; a legacy
+`DDA_WEB_URI` value is also accepted. `DDA_GRPC_WEB_TLS_VERIFY=true` enables
+certificate verification when a trusted device certificate is available.
 
 ---
 
@@ -176,8 +175,8 @@ belong to the **parked** gRPC `LocalTransport`, not the default path.
 The end-to-end path (`PLAN.md` Phase 1 exit criteria): build and publish the app
 image, install it on a Doovit from the app store, reach the editor, wire a tag to a
 notification, and confirm it in the Doover UI. This is the way to exercise the
-default `DooverJsLocalTransport` against a live on-device dda-agent web API end to
-end. (The in-app **Open Editor** action is a placeholder pending the editor tunnel
+default `GrpcWebTransport` against a live on-device DDA gRPC-Web API end to end.
+(The in-app **Open Editor** action is a placeholder pending the editor tunnel
 — `PLAN.md` Phase 2 — so editor access on a real device is not yet one-click.)
 
 ---
@@ -189,16 +188,16 @@ contributors without a Doovit can develop the on-device path locally. This is no
 finished; the current state and the intended shape:
 
 - **Today:** the repo carries the app-template simulator stack under
-  `simulators/`. `docker-compose.yml` defines **two** services — `device_agent`
-  (`spaneng/doover-device-agent`) and `node_red_application` (this app) — and
-  `doover app run` brings them up. A sample simulator that publishes a
+  `simulators/`. For remote `doover app run <device>`, Compose starts only
+  `node_red_application` and uses the DDA already installed on the Doovit. A
+  sample simulator that publishes a
   `random_value` tag exists in source at `simulators/sample/` (`main.py`), but it
   is **not** wired in as a compose service yet. Node unit tests use
   `@doover/nodered-core`'s in-memory `MockTransport`, independent of any container.
 - **Intended:** add the `simulators/sample/` producer as a compose service so it
   seeds a representative tag set into the agent, and point a locally-run Node-RED
-  (palette linked, as above) at the stack's device-agent **web API**
-  (`DDA_WEB_URI`) so the default `DooverJsLocalTransport` talks to the simulated
+  (palette linked, as above) at the stack's device-agent **gRPC-Web API**
+  (`DDA_GRPC_WEB_URI`) so the default `GrpcWebTransport` talks to the simulated
   agent instead of a real Doovit — giving a full editor-to-tags loop on a laptop.
   The open items are wiring the palette's `doover-connection` (local) to the compose
   network's agent endpoint and seeding a representative tag/channel set.

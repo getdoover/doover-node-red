@@ -1,7 +1,7 @@
 {
   "name": "node-red-contrib-doover",
   "version": "0.1.0",
-  "description": "Doover nodes for Node-RED: tags, channels, aggregates and notifications, working both on a Doover device (local gRPC) and against the Doover cloud.",
+  "description": "Doover nodes for Node-RED: tags, channels, aggregates and notifications over local DDA gRPC-Web or the Doover cloud.",
   "keywords": [
     "node-red",
     "doover"

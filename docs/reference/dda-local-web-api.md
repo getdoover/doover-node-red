@@ -1,5 +1,10 @@
 # dda-agent local web API (port 49100) — contract reference
 
+> **Current local transport:** the updated DDA mounts its full protobuf service
+> as gRPC-Web at `https://<device>:49100/grpc`. The palette now uses that mount
+> through `GrpcWebTransport`; the REST/WSS surface documented below remains
+> useful for widgets and compatibility, but is no longer the palette backend.
+
 Authoritative source: **`spaneng/doover-device-agent`** (private, Rust). Read via
 the GitHub API, not cloned into this repo. Cross-checked against
 `spaneng/pydoover` (env-var contract) and the local `doover-js` source clone
@@ -353,11 +358,9 @@ server-side path at all**.
 client will not connect; an https client must relax cert verification.
 
 ### Bottom line
-As published, **doover-js `LocalAgentClient` (v0.6.5 source; 0.7.1 to re-verify)
-cannot talk to the current dda-agent web API**: every REST path 404s, the WSS
-protocol differs entirely, and the transport is https-not-http. `LocalAgentClient`
-is written against a *future/other* local API that mirrors the cloud contract,
-not the shipping channel-viewer surface.
+The doover-js `LocalAgentClient` does not match the DDA's compatibility
+REST/WSS routes. This is now resolved for the palette by using the DDA's full
+gRPC-Web service at `/grpc`, rather than adapting the narrower `/ch/v1` API.
 
 The overlap that **is** actually served by the DDA today is narrow:
 - read a channel aggregate — `GET /ch/v1/agent/{id}/{ch}/aggregate`
@@ -371,20 +374,11 @@ That set maps cleanly onto our `DooverTransport` interface
 speaks the `/ch/v1` + `UI_SUBSCRIBE_CHANNEL` protocol directly — but it does
 **not** give us `messages`, one-shot, aggregate-replace, or agent enumeration.
 
-### Decisions for the smoke test / orchestrator
-1. **UNVERIFIED — does 0.7.1 (or doover-js `origin/main`, ~10 commits ahead)
-   change `LocalAgentClient` to the `/ch/v1` protocol?** If yes, most of this
-   gap closes. Check the installed 0.7.1 dist and `origin/main` before writing
-   LocalTransport.
-2. **UNVERIFIED — is a cloud-compatible local REST/gateway API planned on the
-   DDA side?** If the DDA is about to grow `/agents/...` routes, `LocalAgentClient`
-   becomes usable and we should wait rather than build a `/ch/v1` adapter.
-3. If neither lands: our `nodered-core` LocalTransport should **either** keep the
-   gRPC path (already parked but functional) **or** implement a small
-   DDA-web adapter against the five endpoints above — not depend on
-   `LocalAgentClient` as-is.
-4. One-shot / live tags and message history have **no** local web-API path today
-   — they remain gRPC-only (`SendOneShotMessage`, `CreateMessage`) on the device.
+### Resolution
+`GrpcWebTransport` calls `TestComms`, `GetAggregate`, `UpdateAggregate`,
+`ChannelEventSubscription`, `CreateMessage`, and `SendOneShotMessage` through
+the `/grpc` mount. This preserves aggregate writes, server-streaming events,
+one-shots and messages without depending on the compatibility REST routes.
 
 ---
 

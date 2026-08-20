@@ -1,6 +1,6 @@
 "use strict";
 /*
- * doover-connection — shared connection config node (doover-js transport era).
+ * doover-connection — shared connection config node.
  *
  * Every Doover message node references one of these. It owns a single shared
  * DooverTransport, refcounted across the consumer nodes that reference it, and
@@ -8,21 +8,15 @@
  * lazily on first use and closed when the last consumer releases it (or when the
  * config node itself is closed).
  *
- * The transport core is doover-js (talking to the dda-agent local web API on
- * port 49100, not the parked gRPC socket). Two modes, both active:
- *   - "local" (default) — zero-config. DooverJsLocalTransport connects to the
- *     in-container agent web API (DDA_WEB_URI env, default 127.0.0.1:49100) and
- *     reads APP_KEY from the env. The editor shows the detected agent id / app
- *     key read-only (via the identity admin endpoint below). An optional
- *     advanced "base URL" override enables the LAN scenario: a standalone
- *     Node-RED pointing at a device's web API (https://<device-ip>:49100).
+ * Local mode speaks protobuf over the DDA HTTPS listener's gRPC-Web mount at
+ * `/grpc` (port 49100). Cloud mode remains backed by doover-js.
  *   - "cloud" — DooverJsCloudTransport to the Doover cloud. Fields: API base URL
  *     (default https://api.doover.com), target agent id, and an API token stored
  *     via Node-RED credentials (never in plain node config).
  */
 
 const {
-  DooverJsLocalTransport,
+  GrpcWebTransport,
   DooverJsCloudTransport,
   TagClient,
 } = require("@doover/nodered-core");
@@ -39,7 +33,7 @@ let _transportFactory = null;
  * Build the real transport for a connection.
  * @param {string} mode - "local" | "cloud".
  * @param {object} opts - Transport options. For local: `{ baseUrl? }` — omit to
- *   let DooverJsLocalTransport resolve DDA_WEB_URI / its default. For cloud:
+ *   resolve DDA_GRPC_WEB_URI / DDA_WEB_URI / the on-device default. For cloud:
  *   `{ apiBase, agentId, token }`.
  * @returns {import("@doover/nodered-core").DooverTransport}
  */
@@ -52,14 +46,12 @@ function defaultTransportFactory(mode, opts) {
     }
     return new DooverJsCloudTransport(opts || {});
   }
-  if (!DooverJsLocalTransport) {
+  if (!GrpcWebTransport) {
     throw new Error(
-      "DooverJsLocalTransport is not available from @doover/nodered-core"
+      "GrpcWebTransport is not available from @doover/nodered-core"
     );
   }
-  // Local: zero-config unless an advanced base-URL override is supplied. The
-  // transport resolves DDA_WEB_URI / its default and reads APP_KEY from env.
-  return new DooverJsLocalTransport(opts || {});
+  return new GrpcWebTransport(opts || {});
 }
 
 /** @param {import("node-red").NodeAPI} RED */
@@ -71,9 +63,8 @@ module.exports = function (RED) {
     // "local" (default) | "cloud". Kept as `dooverType` to avoid clashing with
     // Node-RED's own `type` on the node instance.
     node.dooverType = config.dooverType || "local";
-    // Local advanced override: base URL of the agent web API. Empty = zero-config
-    // (the transport resolves DDA_WEB_URI / its 127.0.0.1:49100 default). Set to
-    // e.g. https://<device-ip>:49100 for the standalone-Node-RED-on-LAN scenario.
+    // Local advanced override: the DDA web listener base URL. The transport
+    // appends /grpc when it is not supplied explicitly.
     node.localBaseUrl = config.localBaseUrl || "";
     // Cloud fields — API base URL + target agent id. The token lives in
     // credentials (password), never in plain node config.

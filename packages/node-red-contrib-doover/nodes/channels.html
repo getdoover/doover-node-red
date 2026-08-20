@@ -127,7 +127,7 @@
   </div>
   <div class="form-row">
     <label for="node-input-maxAge"><i class="fa fa-clock-o"></i> Max age (s)</label>
-    <input type="text" id="node-input-maxAge" placeholder="not yet supported" />
+    <input type="text" id="node-input-maxAge" placeholder="optional" />
   </div>
   <div class="form-row">
     <label for="node-input-oneShot" style="width:auto">
@@ -160,10 +160,8 @@
     <dd>Persist this write in the channel history (<code>record_log</code>).</dd>
     <dt>Max age (s)</dt>
     <dd>
-      <strong>Not yet supported.</strong> Intended as an aggregate cache
-      max-age hint (seconds), but the shipping doover-js transports expose no
-      such option, so any value entered here is <em>ignored</em> (it never
-      reaches the wire). Left in place for a future transport that honours it.
+      Aggregate cache max-age hint in seconds. Local gRPC-Web forwards this as
+      <code>max_age_secs</code>.
     </dd>
     <dt>One-shot</dt>
     <dd>Deliver to live subscribers without merging into the persisted aggregate (for high-rate values).</dd>

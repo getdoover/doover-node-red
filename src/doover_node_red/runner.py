@@ -195,12 +195,14 @@ _ENV_PASSTHROUGH = frozenset(
         "NODE_PATH",
         "NODE_ENV",
         "NODE_RED_HOME",
-        # Doover local-transport / palette auto-discovery (dooverjs-transport):
-        # the local web API on 127.0.0.1:49100 needs no token, just these.
+        # Doover local-transport / palette auto-discovery. Local mode uses the
+        # DDA HTTPS listener's gRPC-Web mount and needs no API token.
         "APP_KEY",
         "AGENT_ID",
         "DDA_URI",
         "DDA_WEB_URI",
+        "DDA_GRPC_WEB_URI",
+        "DDA_GRPC_WEB_TLS_VERIFY",
         "PLT_URI",
         "MODBUS_URI",
         # settings.js reads this for the Node-RED console log level.
@@ -223,6 +225,8 @@ _ENV_RESERVED_NAMES = frozenset(
         "AGENT_ID",
         "DDA_URI",
         "DDA_WEB_URI",
+        "DDA_GRPC_WEB_URI",
+        "DDA_GRPC_WEB_TLS_VERIFY",
         "PLT_URI",
         "MODBUS_URI",
         "IFS",

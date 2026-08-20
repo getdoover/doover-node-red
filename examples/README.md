@@ -18,9 +18,6 @@ file contents (or use **Import → Examples** when the palette is installed), th
 **Deploy**. Each flow ships a pre-seeded **Local Device** connection so it works
 with zero configuration on a Doovit.
 
-> ⚠️ **Property-name assumptions:** these flows were written while the palette
-> node files were still placeholders, so node `type` strings and property names
-> were derived from `PLAN.md` §3.1–3.3 and `docs/reference/nodered-conventions.md`.
-> The authoritative list and per-node caveats live in the package copy's
-> [`README.md`](../packages/node-red-contrib-doover/examples/README.md) — reconcile
-> against the real node `defaults` once the nodes are implemented.
+The node type strings and properties match the implemented palette. The
+authoritative per-node list lives in the package copy's
+[`README.md`](../packages/node-red-contrib-doover/examples/README.md).

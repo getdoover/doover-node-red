@@ -56,22 +56,24 @@ doover-node-red/
                      │        │                                    │
                      │        ▼                                    │
                      │  @doover/nodered-core  (transport layer)    │
-                     │   ├── DooverJsLocalTransport (REST+WS, on-device) │
+                     │   ├── GrpcWebTransport (HTTPS, on-device)         │
                      │   └── DooverJsCloudTransport (REST+WSS, remote)   │
                      └────────┬──────────────────────┬─────────────┘
                               │                       │
-                 dda-agent local web API          api.doover.com
-                 127.0.0.1:49100 (same Doovit)    (+ gateway WSS)
+                 dda-agent gRPC-Web API            api.doover.com
+                 https://127.0.0.1:49100/grpc      (+ gateway WSS)
 ```
 
 - **`@doover/nodered-core`** is a plain, Node-RED-independent library exposing one
   `DooverTransport` interface. The shipped default on a Doovit is
-  **`DooverJsLocalTransport`** — `doover-js`'s `LocalAgentClient` over the on-device
-  dda-agent's local **REST + WebSocket web API** (port 49100, base URL from
-  `$DDA_WEB_URI`, default `http://127.0.0.1:49100`). The remote path is
+  **`GrpcWebTransport`** — the DDA protobuf API over its on-device HTTPS
+  **gRPC-Web** mount (default `https://127.0.0.1:49100/grpc`). It uses binary
+  protobuf framing for unary calls and channel-event streams. The remote path is
   **`DooverJsCloudTransport`** (REST + WebSocket to the Doover cloud, reusing
   `doover-js`). A legacy gRPC `LocalTransport` (port 50051, protos vendored from
-  pydoover) is retained and tested but **parked** — it is not the default. A **tag
+  pydoover) is retained and tested but **parked** — it is not the default. The
+  old doover-js local adapter is also retained for compatibility but is not
+  selected by the palette. A **tag
   layer** rides on top of either transport — tags are a convenience over the
   `tag_values` channel aggregate, exactly as in pydoover.
 - **`node-red-contrib-doover`** is the palette. Every message node references a
