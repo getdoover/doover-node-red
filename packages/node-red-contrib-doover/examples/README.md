@@ -35,9 +35,10 @@ Assumed properties per node:
 - **doover-channel-in**: `connection`, `channel`, `emitAggregateOnConnect`.
 - **doover-channel-out**: `connection`, `channel`, `recordLog`, `maxAge`,
   `oneShot`.
-- **doover-notify**: `connection`, `recordActivity`. Message text arrives as
-  `msg.payload`. A structured payload may contain `message` and optional `title`,
-  `topic`, and `severity` fields.
+- **doover-notify**: `connection`, `message`, `messageType`, `title`,
+  `titleType`, `topic`, `topicType`, `severity`, `severityType`, and
+  `recordActivity`. The four notification fields default to `msg.payload`,
+  `msg.title`, `msg.topic`, and `msg.severity`.
 
 The `inject`, `switch`, `function`, `debug` and `http request` nodes are stock
 Node-RED core nodes and are stable.

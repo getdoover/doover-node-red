@@ -108,17 +108,14 @@ describe("doover notify node", () => {
     assert.deepEqual(notification.payload, { message: '{"code":5}' });
   });
 
-  it("publishes a structured modern notification payload", async () => {
+  it("reads notification fields from msg properties by default", async () => {
     await load([{ id: "n1", type: "doover-notify", connection: "c1" }, CONN]);
     const transport = helper.getNode("c1").getTransport();
     helper.getNode("n1").receive({
-      payload: {
-        message: "Pump pressure is high",
-        title: "Pump alarm",
-        topic: "dev/applications/default/node-red/pump-pressure",
-        severity: "warn",
-        ignored: true,
-      },
+      payload: "Pump pressure is high",
+      title: "Pump alarm",
+      topic: "dev/applications/default/node-red/pump-pressure",
+      severity: "warn",
     });
     await new Promise((r) => setTimeout(r, 20));
 
@@ -133,13 +130,50 @@ describe("doover notify node", () => {
     });
   });
 
-  it("rejects invalid structured notification metadata", async () => {
+  it("uses explicitly configured values instead of the default msg properties", async () => {
+    await load([
+      {
+        id: "n1",
+        type: "doover-notify",
+        connection: "c1",
+        message: "Fixed message",
+        messageType: "str",
+        title: "Fixed title",
+        titleType: "str",
+        topic: "dev/applications/default/node-red/fixed",
+        topicType: "str",
+        severity: "Critical",
+        severityType: "str",
+      },
+      CONN,
+    ]);
+    const transport = helper.getNode("c1").getTransport();
+    helper.getNode("n1").receive({
+      payload: "Ignored message",
+      title: "Ignored title",
+      topic: "ignored/topic",
+      severity: "Info",
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    const notification = transport.publishes.find(
+      (p) => p.channel === "notifications"
+    );
+    assert.deepEqual(notification.payload, {
+      message: "Fixed message",
+      title: "Fixed title",
+      topic: "dev/applications/default/node-red/fixed",
+      severity: "Critical",
+    });
+  });
+
+  it("rejects an invalid severity", async () => {
     await load([{ id: "n1", type: "doover-notify", connection: "c1" }, CONN]);
     const transport = helper.getNode("c1").getTransport();
     const n1 = helper.getNode("n1");
     const error = new Promise((resolve) => n1.once("call:error", resolve));
 
-    n1.receive({ payload: { message: "bad", severity: "emergency" } });
+    n1.receive({ payload: "bad", severity: "emergency" });
     const call = await error;
 
     assert.match(call.args[0].message, /notification severity must be/);

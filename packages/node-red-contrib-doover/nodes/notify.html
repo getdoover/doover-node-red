@@ -12,6 +12,14 @@
     defaults: {
       name: { value: "" },
       connection: { value: "", type: "doover-connection", required: true },
+      message: { value: "payload", required: true },
+      messageType: { value: "msg" },
+      topic: { value: "topic" },
+      topicType: { value: "msg" },
+      severity: { value: "severity" },
+      severityType: { value: "msg" },
+      title: { value: "title" },
+      titleType: { value: "msg" },
       recordActivity: { value: false }
     },
     inputs: 1,
@@ -24,6 +32,16 @@
     },
     labelStyle: function () {
       return this.name ? "node_label_italic" : "";
+    },
+    oneditprepare: function () {
+      var types = ["msg", "str", "env", "jsonata"];
+      ["message", "topic", "severity", "title"].forEach(function (field) {
+        $("#node-input-" + field).typedInput({
+          default: "msg",
+          typeField: "#node-input-" + field + "Type",
+          types: types
+        });
+      });
     }
   });
 </script>
@@ -32,6 +50,26 @@
   <div class="form-row">
     <label for="node-input-connection"><i class="fa fa-globe"></i> Connection</label>
     <input type="text" id="node-input-connection">
+  </div>
+  <div class="form-row">
+    <label for="node-input-message"><i class="fa fa-comment"></i> Message</label>
+    <input type="text" id="node-input-message">
+    <input type="hidden" id="node-input-messageType">
+  </div>
+  <div class="form-row">
+    <label for="node-input-title"><i class="fa fa-header"></i> Title</label>
+    <input type="text" id="node-input-title">
+    <input type="hidden" id="node-input-titleType">
+  </div>
+  <div class="form-row">
+    <label for="node-input-topic"><i class="fa fa-filter"></i> Topic</label>
+    <input type="text" id="node-input-topic">
+    <input type="hidden" id="node-input-topicType">
+  </div>
+  <div class="form-row">
+    <label for="node-input-severity"><i class="fa fa-exclamation-triangle"></i> Severity</label>
+    <input type="text" id="node-input-severity">
+    <input type="hidden" id="node-input-severityType">
   </div>
   <div class="form-row">
     <label for="node-input-recordActivity" style="width:auto">
@@ -51,17 +89,24 @@
     so it appears in the customer-site activity timeline.</p>
   <h3>Inputs</h3>
   <dl class="message-properties">
-    <dt>payload <span class="property-type">string | object</span></dt>
+    <dt>payload <span class="property-type">any</span></dt>
+    <dd>the notification message by default. Non-strings are stringified.</dd>
+    <dt>title <span class="property-type">string</span></dt>
+    <dd>the optional notification title by default.</dd>
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd>the optional subscription-routing topic by default.</dd>
+    <dt>severity <span class="property-type">string</span></dt>
     <dd>
-      The notification text. Non-string values are stringified. To include
-      notification metadata, pass an object with <code>message</code> and
-      optional <code>title</code>, <code>topic</code>, and <code>severity</code>
-      fields. Severity accepts <code>Trace</code>, <code>Debug</code>,
-      <code>Info</code>, <code>Warn</code>, or <code>Critical</code>.
+      the optional severity by default. Accepted values are <code>Trace</code>,
+      <code>Debug</code>, <code>Info</code>, <code>Warn</code>, and
+      <code>Critical</code>.
     </dd>
   </dl>
   <h3>Options</h3>
   <ul>
+    <li><b>Message, title, topic, and severity</b> can each read a message
+      property, use a fixed string or environment variable, or evaluate a
+      JSONata expression.</li>
     <li><b>Also record an activity-log entry</b> additionally writes the same
       text to the <code>activity_logs</code> channel as an action.</li>
   </ul>

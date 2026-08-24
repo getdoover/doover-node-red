@@ -2,10 +2,9 @@
 /*
  * doover-notify — Doover notification node.
  *
- * Publishes msg.payload to the modern `notifications` channel. Scalar and
- * unrecognised object payloads become `{ "message": <text> }`. A payload with a
- * `message` property may also provide the notification system's optional
- * `title`, `topic`, and `severity` fields.
+ * Publishes to the modern `notifications` channel. Message, title, topic, and
+ * severity are independent Node-RED typed inputs. Existing nodes and new nodes
+ * default to msg.payload, msg.title, msg.topic, and msg.severity respectively.
  *
  * Optionally records the message on the customer site's `activity_logs`
  * timeline channel as `{ "message": <text>, "type": "action" }`.
@@ -53,14 +52,14 @@ function toText(payload) {
 }
 
 /**
- * Read an optional string from a notification payload. Empty strings are
+ * Read an optional string from a resolved notification field. Empty strings are
  * omitted so Doover can apply its title and topic defaults.
- * @param {Record<string, unknown>} payload
+ * @param {Record<string, unknown>} fields
  * @param {"title" | "topic"} field
  * @returns {string | undefined}
  */
-function optionalString(payload, field) {
-  const value = payload[field];
+function optionalString(fields, field) {
+  const value = fields[field];
   if (value === undefined || value === null || value === "") {
     return undefined;
   }
@@ -93,33 +92,110 @@ function optionalSeverity(value) {
 }
 
 /**
- * Parse msg.payload at the Node-RED boundary into doover-data's notification
- * channel contract.
- * @param {unknown} payload
+ * Build doover-data's notification payload from independently resolved fields.
+ * @param {{message: unknown, title: unknown, topic: unknown, severity: unknown}} fields
  * @returns {NotificationPayload}
  */
-function toNotification(payload) {
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    Array.isArray(payload) ||
-    !Object.prototype.hasOwnProperty.call(payload, "message")
-  ) {
-    return { message: toText(payload) };
-  }
-
-  /** @type {Record<string, unknown>} */
-  const input = payload;
+function toNotification(fields) {
   /** @type {NotificationPayload} */
-  const notification = { message: toText(input.message) };
-  const title = optionalString(input, "title");
-  const topic = optionalString(input, "topic");
-  const severity = optionalSeverity(input.severity);
+  const notification = { message: toText(fields.message) };
+  const title = optionalString(fields, "title");
+  const topic = optionalString(fields, "topic");
+  const severity = optionalSeverity(fields.severity);
 
   if (title !== undefined) notification.title = title;
   if (topic !== undefined) notification.topic = topic;
   if (severity !== undefined) notification.severity = severity;
   return notification;
+}
+
+/**
+ * Evaluate one configured Node-RED typed input.
+ * @param {import("node-red").NodeAPI} RED
+ * @param {import("node-red").Node} node
+ * @param {Record<string, unknown>} msg
+ * @param {string} field
+ * @param {string} value
+ * @param {string} type
+ * @returns {Promise<unknown>}
+ */
+function evaluateField(RED, node, msg, field, value, type) {
+  return new Promise((resolve, reject) => {
+    try {
+      RED.util.evaluateNodeProperty(value, type, node, msg, (err, result) => {
+        if (err) {
+          reject(
+            new Error(
+              "notification " + field + " could not be evaluated: " + err.message
+            )
+          );
+          return;
+        }
+        resolve(result);
+      });
+    } catch (err) {
+      reject(
+        new Error(
+          "notification " + field + " could not be evaluated: " + err.message
+        )
+      );
+    }
+  });
+}
+
+/**
+ * Resolve the four typed inputs. Explicit undefined checks preserve valid empty
+ * fixed strings while giving old saved flows the new defaults.
+ * @param {import("node-red").NodeAPI} RED
+ * @param {import("node-red").Node} node
+ * @param {Record<string, unknown>} msg
+ * @param {Record<string, unknown>} config
+ * @returns {Promise<NotificationPayload>}
+ */
+async function resolveNotification(RED, node, msg, config) {
+  const configured = (field, defaultValue) =>
+    config[field] === undefined ? defaultValue : String(config[field]);
+  const configuredType = (field) =>
+    config[field + "Type"] === undefined
+      ? "msg"
+      : String(config[field + "Type"]);
+
+  const [message, topic, severity, title] = await Promise.all([
+    evaluateField(
+      RED,
+      node,
+      msg,
+      "message",
+      configured("message", "payload"),
+      configuredType("message")
+    ),
+    evaluateField(
+      RED,
+      node,
+      msg,
+      "topic",
+      configured("topic", "topic"),
+      configuredType("topic")
+    ),
+    evaluateField(
+      RED,
+      node,
+      msg,
+      "severity",
+      configured("severity", "severity"),
+      configuredType("severity")
+    ),
+    evaluateField(
+      RED,
+      node,
+      msg,
+      "title",
+      configured("title", "title"),
+      configuredType("title")
+    ),
+  ]);
+
+  return toNotification({ message, topic, severity, title });
 }
 
 /** @param {import("node-red").NodeAPI} RED */
@@ -152,7 +228,12 @@ module.exports = function (RED) {
 
     node.on("input", async (msg, send, done) => {
       try {
-        const notification = toNotification(msg.payload);
+        const notification = await resolveNotification(
+          RED,
+          node,
+          msg,
+          config
+        );
 
         await transport.publish(
           NOTIFICATIONS_CHANNEL,

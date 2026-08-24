@@ -144,7 +144,7 @@ built on them internally.
 
 | Node | Behaviour |
 |------|-----------|
-| `doover notify` | Publishes to `notifications` for timeline and subscribed push/email/SMS delivery. `msg.payload` is message text or a structured notification; option to also record an `activity_logs` entry. |
+| `doover notify` | Publishes to `notifications` for timeline and subscribed push/email/SMS delivery. Separate typed inputs default to `msg.payload`, `msg.title`, `msg.topic`, and `msg.severity`; option to also record an `activity_logs` entry. |
 | `doover activity` | Records an activity-log entry without notifying. |
 
 ### 3.4 Doover UI nodes
