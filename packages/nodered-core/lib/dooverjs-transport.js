@@ -186,6 +186,7 @@ class DooverJsTransport extends DooverTransport {
   }
 
   async createMessage(channel, payload) {
+    validatePayload(payload);
     await this._ensureConnected();
     const result = await this._client.messages.postMessage(this._agentId, channel, { data: payload });
     return result?.id ?? null;

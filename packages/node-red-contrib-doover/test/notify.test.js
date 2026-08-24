@@ -12,16 +12,22 @@ helper.init(require.resolve("node-red"));
 
 // --- test doubles -----------------------------------------------------------
 
-/** MockTransport that records every publish call (channel, payload, opts). */
+/** MockTransport that records aggregate publishes and message appends. */
 class RecordingTransport extends MockTransport {
   constructor(opts) {
     super(opts);
     /** @type {Array<{channel:string,payload:any,opts:any}>} */
     this.publishes = [];
+    /** @type {Array<{channel:string,payload:any}>} */
+    this.createdMessages = [];
   }
   async publish(channel, payload, opts) {
     this.publishes.push({ channel, payload, opts });
     return super.publish(channel, payload, opts);
+  }
+  async createMessage(channel, payload) {
+    this.createdMessages.push({ channel, payload });
+    return super.createMessage(channel, payload);
   }
 }
 
@@ -73,28 +79,34 @@ describe("doover notify node", () => {
     assert.equal(helper.getNode("n1").type, "doover-notify");
   });
 
-  it("publishes payload text to the notifications channel", async () => {
+  it("appends a notification message without updating the aggregate", async () => {
     await load([
       { id: "n1", type: "doover-notify", connection: "c1", wires: [["n2"]] },
       { id: "n2", type: "helper" },
       CONN,
     ]);
     const transport = helper.getNode("c1").getTransport();
+    transport.seedAggregate("notifications", { existing: true });
     const n2 = helper.getNode("n2");
     const got = new Promise((res) => n2.once("input", res));
     helper.getNode("n1").receive({ payload: "High temperature detected!" });
     await got; // pass-through
 
-    const notification = transport.publishes.find(
+    const notification = transport.createdMessages.find(
       (p) => p.channel === "notifications"
     );
-    assert.ok(notification, "published to notifications");
+    assert.ok(notification, "appended to notifications");
     assert.deepEqual(notification.payload, {
       message: "High temperature detected!",
     });
-    assert.deepEqual(notification.opts, { recordLog: true });
+    assert.deepEqual(await transport.getAggregate("notifications"), {
+      existing: true,
+    });
+    assert.equal(transport.publishes.length, 0, "no aggregate was published");
     // No activity log entry unless the option is enabled.
-    assert.ok(!transport.publishes.some((p) => p.channel === "activity_logs"));
+    assert.ok(
+      !transport.createdMessages.some((p) => p.channel === "activity_logs")
+    );
   });
 
   it("stringifies non-string payloads", async () => {
@@ -102,7 +114,7 @@ describe("doover notify node", () => {
     const transport = helper.getNode("c1").getTransport();
     helper.getNode("n1").receive({ payload: { code: 5 } });
     await new Promise((r) => setTimeout(r, 20));
-    const notification = transport.publishes.find(
+    const notification = transport.createdMessages.find(
       (p) => p.channel === "notifications"
     );
     assert.deepEqual(notification.payload, { message: '{"code":5}' });
@@ -119,7 +131,7 @@ describe("doover notify node", () => {
     });
     await new Promise((r) => setTimeout(r, 20));
 
-    const notification = transport.publishes.find(
+    const notification = transport.createdMessages.find(
       (p) => p.channel === "notifications"
     );
     assert.deepEqual(notification.payload, {
@@ -156,7 +168,7 @@ describe("doover notify node", () => {
     });
     await new Promise((r) => setTimeout(r, 20));
 
-    const notification = transport.publishes.find(
+    const notification = transport.createdMessages.find(
       (p) => p.channel === "notifications"
     );
     assert.deepEqual(notification.payload, {
@@ -177,6 +189,7 @@ describe("doover notify node", () => {
     const call = await error;
 
     assert.match(call.args[0].message, /notification severity must be/);
+    assert.equal(transport.createdMessages.length, 0);
     assert.equal(transport.publishes.length, 0);
   });
 
@@ -191,13 +204,19 @@ describe("doover notify node", () => {
       CONN,
     ]);
     const transport = helper.getNode("c1").getTransport();
+    transport.seedAggregate("activity_logs", { existing: true });
     helper.getNode("n1").receive({ payload: "Pump started" });
     await new Promise((r) => setTimeout(r, 20));
 
-    const act = transport.publishes.find((p) => p.channel === "activity_logs");
-    assert.ok(act, "published to activity_logs");
+    const act = transport.createdMessages.find(
+      (p) => p.channel === "activity_logs"
+    );
+    assert.ok(act, "appended to activity_logs");
     assert.deepEqual(act.payload, { message: "Pump started", type: "action" });
-    assert.equal(act.opts.recordLog, true);
+    assert.deepEqual(await transport.getAggregate("activity_logs"), {
+      existing: true,
+    });
+    assert.equal(transport.publishes.length, 0, "no aggregate was published");
   });
 
   it("passes the message through", async () => {

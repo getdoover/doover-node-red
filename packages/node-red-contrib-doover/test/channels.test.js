@@ -177,6 +177,87 @@ describe("doover channel nodes", function () {
     );
   });
 
+  // ---- doover-message ----------------------------------------------------
+  it("message appends a persisted message without changing the aggregate", async function () {
+    const mock = new MockTransport({
+      autoConnect: true,
+      aggregates: { events: { current: true } },
+    });
+    useMock(mock);
+
+    const flow = [
+      { id: "conn", type: "doover-connection", dooverType: "local" },
+      {
+        id: "message",
+        type: "doover-message",
+        connection: "conn",
+        channel: "events",
+      },
+    ];
+    await load([connectionNode, channelNodes], flow);
+
+    helper.getNode("message").receive({ payload: { event: "pump_started" } });
+    await delay(10);
+
+    assert.deepEqual(mock.messages, [
+      {
+        id: "1",
+        channel: "events",
+        payload: { event: "pump_started" },
+      },
+    ]);
+    assert.deepEqual(await mock.getAggregate("events"), { current: true });
+  });
+
+  it("message uses msg.topic when no channel is configured", async function () {
+    const mock = new MockTransport({ autoConnect: true });
+    useMock(mock);
+
+    const flow = [
+      { id: "conn", type: "doover-connection", dooverType: "local" },
+      {
+        id: "message",
+        type: "doover-message",
+        connection: "conn",
+        channel: "",
+      },
+    ];
+    await load([connectionNode, channelNodes], flow);
+
+    helper
+      .getNode("message")
+      .receive({ topic: "dynamic-events", payload: { value: 5 } });
+    await delay(10);
+
+    assert.equal(mock.messages[0].channel, "dynamic-events");
+    assert.deepEqual(mock.messages[0].payload, { value: 5 });
+    assert.equal(await mock.getAggregate("dynamic-events"), null);
+  });
+
+  it("message rejects payloads that are not JSON objects", async function () {
+    const mock = new MockTransport({ autoConnect: true });
+    useMock(mock);
+
+    const flow = [
+      { id: "conn", type: "doover-connection", dooverType: "local" },
+      {
+        id: "message",
+        type: "doover-message",
+        connection: "conn",
+        channel: "events",
+      },
+    ];
+    await load([connectionNode, channelNodes], flow);
+
+    const message = helper.getNode("message");
+    const error = new Promise((resolve) => message.once("call:error", resolve));
+    message.receive({ payload: "not an object" });
+
+    const call = await error;
+    assert.match(call.args[0].message, /payload must be an object/);
+    assert.equal(mock.messages.length, 0);
+  });
+
   // ---- doover-channel-in -------------------------------------------------
   it("channel in emits a message per channel message", async function () {
     const mock = new MockTransport({ autoConnect: true });

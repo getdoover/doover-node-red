@@ -33,6 +33,7 @@ class DooverTransport extends EventEmitter {
   subscribe() { throw new Error("subscribe() is not implemented"); }
   async getAggregate() { throw new Error("getAggregate() is not implemented"); }
   async sendOneShot() { throw new Error("sendOneShot() is not implemented"); }
+  async createMessage() { throw new Error("createMessage() is not implemented"); }
 }
 
 module.exports = { DooverTransport };
