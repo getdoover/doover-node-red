@@ -1,0 +1,13 @@
+services:
+  doover_node_red:
+    image: registry.doover.com/apps/doover_node_red:main
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - APP_KEY=$APP_KEY
+      - HEALTHCHECK_PORT=$HEALTHCHECK_PORT
+    volumes:
+      - node_red_data:/data
+
+volumes:
+  node_red_data:
