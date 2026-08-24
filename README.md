@@ -189,6 +189,6 @@ live in.
 
 ## Need help?
 
-- 📧 support@doover.com
+- 📧 hello@doover.com
 - 📖 [Doover Documentation](https://docs.doover.com)
 - 📋 [`PLAN.md`](PLAN.md) — the project plan and open questions
