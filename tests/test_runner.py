@@ -9,6 +9,7 @@ Covers:
 """
 
 import asyncio
+import json
 import os
 import signal
 import stat
@@ -23,6 +24,85 @@ def _make_fake_npm(directory, outfile):
     script.write_text(f'#!/bin/sh\nprintf "%s" "$*" > "{outfile}"\nexit 0\n')
     script.chmod(script.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     return script
+
+
+# --- default flows ----------------------------------------------------------
+
+
+def test_prepare_default_flows_removes_stock_warning_and_adds_local_connection(
+    tmp_path,
+):
+    from doover_node_red.runner import (
+        DEFAULT_LOCAL_CONNECTION_ID,
+        prepare_default_flows,
+    )
+
+    flows_path = tmp_path / "flows.json"
+    user_node = {
+        "id": "user-node",
+        "type": "inject",
+        "z": "default-tab",
+        "name": "keep me",
+    }
+    flows_path.write_text(
+        json.dumps(
+            [
+                {"id": "default-tab", "type": "tab", "label": "Flow 1"},
+                {
+                    "id": "stock-warning",
+                    "type": "comment",
+                    "z": "default-tab",
+                    "name": (
+                        "WARNING: please check you have started this container "
+                        "with a volume that is mounted to /data\notherwise flows are lost"
+                    ),
+                },
+                user_node,
+            ]
+        )
+    )
+
+    assert prepare_default_flows(str(tmp_path)) is True
+    flows = json.loads(flows_path.read_text())
+
+    assert user_node in flows
+    assert not any(node.get("id") == "stock-warning" for node in flows)
+    assert {
+        "id": DEFAULT_LOCAL_CONNECTION_ID,
+        "type": "doover-connection",
+        "name": "Local Device",
+        "dooverType": "local",
+        "localBaseUrl": "",
+        "apiBase": "https://api.doover.com",
+        "agentId": "",
+    } in flows
+
+
+def test_prepare_default_flows_is_idempotent(tmp_path):
+    from doover_node_red.runner import (
+        DEFAULT_LOCAL_CONNECTION_ID,
+        prepare_default_flows,
+    )
+
+    assert prepare_default_flows(str(tmp_path)) is True
+    first = (tmp_path / "flows.json").read_text()
+
+    assert prepare_default_flows(str(tmp_path)) is False
+    assert (tmp_path / "flows.json").read_text() == first
+
+    flows = json.loads(first)
+    assert sum(node.get("id") == DEFAULT_LOCAL_CONNECTION_ID for node in flows) == 1
+    assert any(node.get("type") == "tab" for node in flows)
+
+
+def test_prepare_default_flows_does_not_overwrite_invalid_json(tmp_path):
+    from doover_node_red.runner import prepare_default_flows
+
+    flows_path = tmp_path / "flows.json"
+    flows_path.write_text("not valid json")
+
+    assert prepare_default_flows(str(tmp_path)) is False
+    assert flows_path.read_text() == "not valid json"
 
 
 # --- credential secret persistence -----------------------------------------

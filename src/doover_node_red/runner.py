@@ -16,6 +16,7 @@ import logging
 import os
 import secrets
 import shutil
+import tempfile
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -43,6 +44,116 @@ _STABLE_UPTIME = 30.0
 # it survives restarts. Node-RED encrypts flows_cred.json with this key; a fresh
 # key every boot would make the persisted credentials undecryptable.
 CREDENTIAL_SECRET_FILENAME = ".doover_credential_secret"
+
+# Stable config-node id used by every Doover editor node as its default
+# connection. Keeping it stable lets newly-created nodes reference the seeded
+# local connection before the user has opened any connection dialog.
+DEFAULT_LOCAL_CONNECTION_ID = "doover-local-device"
+
+_DEFAULT_LOCAL_CONNECTION = {
+    "id": DEFAULT_LOCAL_CONNECTION_ID,
+    "type": "doover-connection",
+    "name": "Local Device",
+    "dooverType": "local",
+    "localBaseUrl": "",
+    "apiBase": "https://api.doover.com",
+    "agentId": "",
+}
+
+# The official Node-RED Docker image ships a comment node warning that /data is
+# ephemeral. This app now mounts /data from a named volume, so the warning is
+# both noisy and wrong. Match the specific upstream text rather than deleting
+# arbitrary comment nodes.
+_NODE_RED_VOLUME_WARNING_PREFIX = (
+    "WARNING: please check you have started this container with a volume "
+    "that is mounted to /data"
+)
+
+
+def prepare_default_flows(user_dir: str) -> bool:
+    """Remove the stock Docker warning and seed the local Doover connection.
+
+    Runs before Node-RED starts. Existing user nodes remain untouched. Invalid
+    or non-list flow files are left in place so a migration can never replace a
+    user's unreadable flow with a fresh one.
+
+    Returns ``True`` when ``flows.json`` was written.
+    """
+    path = Path(user_dir) / "flows.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    if path.exists():
+        try:
+            flows = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            log.warning("Could not prepare %s; leaving it unchanged: %s", path, e)
+            return False
+    else:
+        flows = []
+
+    if not isinstance(flows, list):
+        log.warning("Could not prepare %s; expected a JSON array.", path)
+        return False
+
+    prepared = []
+    changed = False
+    for node in flows:
+        is_stock_warning = (
+            isinstance(node, dict)
+            and node.get("type") == "comment"
+            and str(node.get("name", "")).startswith(_NODE_RED_VOLUME_WARNING_PREFIX)
+        )
+        if is_stock_warning:
+            changed = True
+            continue
+        prepared.append(node)
+
+    if not any(
+        isinstance(node, dict) and node.get("type") == "tab" for node in prepared
+    ):
+        prepared.insert(
+            0,
+            {
+                "id": "doover-default-flow",
+                "type": "tab",
+                "label": "Flow 1",
+                "disabled": False,
+                "info": "",
+            },
+        )
+        changed = True
+
+    if not any(
+        isinstance(node, dict) and node.get("id") == DEFAULT_LOCAL_CONNECTION_ID
+        for node in prepared
+    ):
+        prepared.append(dict(_DEFAULT_LOCAL_CONNECTION))
+        changed = True
+
+    if not changed:
+        return False
+
+    temp_path = None
+    try:
+        fd, temp_name = tempfile.mkstemp(
+            prefix=".flows-", suffix=".json.tmp", dir=path.parent
+        )
+        temp_path = Path(temp_name)
+        with os.fdopen(fd, "w") as temp_file:
+            json.dump(prepared, temp_file, indent=4)
+            temp_file.write("\n")
+        os.replace(temp_path, path)
+    except OSError as e:
+        log.warning("Could not prepare %s; leaving it unchanged: %s", path, e)
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return False
+
+    log.info("Prepared default Node-RED flow and local Doover connection in %s.", path)
+    return True
 
 
 class RuntimeState:
@@ -427,6 +538,7 @@ class NodeRedRunner:
         await install_palette_packages(
             self.config.get("extra_palette_packages"), user_dir=self.user_dir
         )
+        prepare_default_flows(self.user_dir)
         self._stopping = False
         self._task = asyncio.create_task(self._supervise())
 
