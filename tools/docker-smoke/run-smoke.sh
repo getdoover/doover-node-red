@@ -11,7 +11,7 @@
 # Assertions:
 #   1. Container stays up (no crash / crash-loop).
 #   2. Node-RED comes up and serves its admin API (GET /settings).
-#   3. Our 8 Doover node types are registered (GET /nodes).
+#   3. Our 9 Doover node types are registered (GET /nodes).
 #   4. The palette packages are present in the userDir DESPITE the /data volume.
 #   5. Supervisor degrades gracefully (retries DDA) rather than crash-looping.
 #   6. No zombie (defunct) processes accumulate while running (ps via exec).
@@ -38,7 +38,7 @@ EXPECTED_NODES=(
   doover-connection
   doover-tag-in doover-tag-get doover-tag-out
   doover-channel-in doover-channel-out doover-aggregate-get
-  doover-notify
+  doover-message doover-notify
 )
 
 pass=0; fail=0
@@ -119,7 +119,7 @@ if [ "$nr_up" = "1" ]; then
     fi
   done
 
-  # 3: our 8 node types registered (GET /nodes) ------------------------------
+  # 3: our 9 node types registered (GET /nodes) ------------------------------
   NODES_JSON=$(docker exec "$CONTAINER" sh -c 'curl -fsS -m 5 http://127.0.0.1:1880/nodes -H "Accept: application/json"' 2>/dev/null)
   for nt in "${EXPECTED_NODES[@]}"; do
     if printf '%s' "$NODES_JSON" | grep -q "\"$nt\""; then

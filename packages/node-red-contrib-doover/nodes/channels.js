@@ -1,11 +1,13 @@
 "use strict";
 /*
- * Channel nodes: doover-channel-in, doover-channel-out, doover-aggregate-get.
+ * Channel nodes: doover-channel-in, doover-channel-out, doover-message,
+ * doover-aggregate-get.
  *
- * All three ride directly on the referenced doover-connection config node's
- * shared DooverTransport (subscribe / publish / getAggregate / sendOneShot).
- * Each consumer acquire()s the connection on construction and release()s it on
- * close so the shared transport is refcounted and torn down cleanly.
+ * All four ride directly on the referenced doover-connection config node's
+ * shared DooverTransport (subscribe / publish / createMessage / getAggregate /
+ * sendOneShot). Each consumer acquire()s the connection on construction and
+ * release()s it on close so the shared transport is refcounted and torn down
+ * cleanly.
  */
 
 const {
@@ -306,6 +308,64 @@ module.exports = function (RED) {
     });
   }
   RED.nodes.registerType("doover-channel-out", DooverChannelOutNode);
+
+  // --- doover-message -------------------------------------------------------
+  function DooverMessageNode(config) {
+    RED.nodes.createNode(this, config);
+    const node = this;
+    node.channel = config.channel;
+
+    const conn = resolveConnection(RED, node, config.connection);
+    if (!conn) {
+      return;
+    }
+
+    let transport;
+    try {
+      transport = conn.acquire();
+    } catch (err) {
+      node.status({ fill: "red", shape: "ring", text: "no transport" });
+      node.error("Doover connection unavailable: " + err.message);
+      return;
+    }
+
+    const detachStatus = statusForTransport(node, transport);
+    let closed = false;
+
+    node.on("input", async function (msg, send, done) {
+      const channel = node.channel || msg.topic;
+      if (!channel) {
+        done(
+          new Error(
+            "doover message: no channel configured and msg.topic is empty."
+          )
+        );
+        return;
+      }
+
+      try {
+        await transport.createMessage(channel, msg.payload);
+        if (!closed) {
+          flashSent(node, transport);
+        }
+        done();
+      } catch (err) {
+        done(err);
+      }
+    });
+
+    node.on("close", function (done) {
+      closed = true;
+      if (node._flashTimer) {
+        clearTimeout(node._flashTimer);
+        node._flashTimer = null;
+      }
+      detachStatus();
+      conn.release();
+      done();
+    });
+  }
+  RED.nodes.registerType("doover-message", DooverMessageNode);
 
   // --- doover-aggregate-get -------------------------------------------------
   function DooverAggregateGetNode(config) {

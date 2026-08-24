@@ -22,7 +22,8 @@
  *   (a) every examples/*.json deploys with zero error-status nodes.
  *   (b) a tag write reaches the fake server with correct <app>/<tag> namespacing,
  *       AND a tag-in subscriber fires on an injected aggregate update.
- *   (c) doover-notify lands as {"message": ...} on notifications.
+ *   (c) doover-notify and doover-message append messages without changing
+ *       their channel aggregates.
  *   (d) 10x redeploy of one flow: no duplicate deliveries, no WSS-connection or
  *       subscription growth.
  *   (e) kill + restart the fake server: nodes return to green and a subsequent
@@ -85,6 +86,7 @@ async function waitStable(cond, opts) {
 const APP_KEY = "e2e_app";
 const TAG_CHANNEL = "tag_values";
 const NOTIFICATIONS_CHANNEL = "notifications";
+const GENERIC_MESSAGES_CHANNEL = "e2e_messages";
 const EXAMPLES_DIR = path.resolve(__dirname, "../../../../examples");
 
 const DOOVER_CONSUMER_TYPES = new Set([
@@ -93,6 +95,7 @@ const DOOVER_CONSUMER_TYPES = new Set([
   "doover-tag-out",
   "doover-channel-in",
   "doover-channel-out",
+  "doover-message",
   "doover-aggregate-get",
   "doover-notify",
 ]);
@@ -168,6 +171,23 @@ function makeFakeAdapter(server) {
         )
         .map((c) => ({ method: c.method, channel: ch, body: c.body }));
     },
+    /** Persisted message POSTs recorded for a channel, normalised to data. */
+    getMessageWrites: (ch) => {
+      const calls = server.calls || [];
+      return calls
+        .filter(
+          (c) =>
+            c.method === "POST" &&
+            typeof c.path === "string" &&
+            c.path.endsWith(`/channels/${ch}/messages`)
+        )
+        .map((c) => ({
+          channel: ch,
+          data: c.body?.payload?.data ?? c.body?.data ?? c.body,
+        }));
+    },
+    setAggregate: (ch, data) => server.setAggregate(ch, data),
+    getAggregate: (ch) => server.getAggregate(ch),
   };
 }
 
@@ -269,6 +289,18 @@ function notifyNode(id, z, connId, targetId) {
     connection: connId,
     recordActivity: false,
     wires: targetId ? [[targetId]] : [],
+  };
+}
+
+function messageNode(id, z, connId, channel) {
+  return {
+    id,
+    type: "doover-message",
+    z,
+    name: "message",
+    connection: connId,
+    channel,
+    wires: [],
   };
 }
 
@@ -430,7 +462,7 @@ async function scenarioTagRoundTrip(ctx) {
 }
 
 /**
- * (c) notify -> notifications {message}.
+ * (c) Notification and generic persisted messages leave aggregates unchanged.
  * @param {{nr:NodeRedHarness, fake:ReturnType<typeof makeFakeAdapter>}} ctx
  */
 async function scenarioNotify(ctx) {
@@ -439,28 +471,62 @@ async function scenarioNotify(ctx) {
   const conn = uid("conn");
   const inj = uid("inj");
   const note = uid("note");
+  const messageInject = uid("message_inj");
+  const message = uid("message");
+  const notificationAggregate = { existing: "notification state" };
+  const genericAggregate = { existing: "message state" };
+  fake.setAggregate(NOTIFICATIONS_CHANNEL, notificationAggregate);
+  fake.setAggregate(GENERIC_MESSAGES_CHANNEL, genericAggregate);
   const flows = [
     tabNode(z, "e2e-c"),
     connNode(conn),
     injectNode(inj, z, note, "hello e2e", "str"),
     notifyNode(note, z, conn, null),
+    injectNode(
+      messageInject,
+      z,
+      message,
+      JSON.stringify({ event: "message e2e" }),
+      "json"
+    ),
+    messageNode(message, z, conn, GENERIC_MESSAGES_CHANNEL),
   ];
   await nr.deploy(flows);
-  await waitAllGreen(nr, [note], 20000);
+  await waitAllGreen(nr, [note, message], 20000);
 
   await nr.triggerInject(inj);
   const write = await waitFor(
     () => {
-      const ws = fake.getWrites(NOTIFICATIONS_CHANNEL);
-      return ws.find((w) => w.body && "message" in w.body);
+      const ws = fake.getMessageWrites(NOTIFICATIONS_CHANNEL);
+      return ws.find((w) => w.data && "message" in w.data);
     },
-    { timeoutMs: 15000, description: "notify write to reach notifications" }
+    { timeoutMs: 15000, description: "notification message to be appended" }
   );
   assert(
-    write.body.message === "hello e2e",
-    `notify payload wrong: ${JSON.stringify(write.body)}`
+    write.data.message === "hello e2e",
+    `notify payload wrong: ${JSON.stringify(write.data)}`
   );
-  return `notify landed as {"message":"hello e2e"} on notifications`;
+  assert(
+    JSON.stringify(fake.getAggregate(NOTIFICATIONS_CHANNEL)) ===
+      JSON.stringify(notificationAggregate),
+    `notify changed the aggregate: ${JSON.stringify(fake.getAggregate(NOTIFICATIONS_CHANNEL))}`
+  );
+
+  await nr.triggerInject(messageInject);
+  const genericWrite = await waitFor(
+    () => fake.getMessageWrites(GENERIC_MESSAGES_CHANNEL)[0],
+    { timeoutMs: 15000, description: "generic message to be appended" }
+  );
+  assert(
+    genericWrite.data.event === "message e2e",
+    `generic message payload wrong: ${JSON.stringify(genericWrite.data)}`
+  );
+  assert(
+    JSON.stringify(fake.getAggregate(GENERIC_MESSAGES_CHANNEL)) ===
+      JSON.stringify(genericAggregate),
+    `generic message changed the aggregate: ${JSON.stringify(fake.getAggregate(GENERIC_MESSAGES_CHANNEL))}`
+  );
+  return "notification and generic messages appended; both aggregates stayed unchanged";
 }
 
 /**
@@ -603,7 +669,7 @@ async function scenarioKillRestart(ctx) {
 const SCENARIOS = [
   { key: "a", name: "examples deploy clean", timeoutMs: 120000, fn: scenarioExamplesDeploy },
   { key: "b", name: "tag write namespacing + tag-in delivery", timeoutMs: 60000, fn: scenarioTagRoundTrip },
-  { key: "c", name: "notify -> notifications", timeoutMs: 45000, fn: scenarioNotify },
+  { key: "c", name: "persisted messages do not update aggregates", timeoutMs: 45000, fn: scenarioNotify },
   { key: "d", name: "10x redeploy: no dup / no leak", timeoutMs: 120000, fn: scenarioRedeploy },
   { key: "e", name: "kill + restart recovery", timeoutMs: 90000, fn: scenarioKillRestart },
 ];

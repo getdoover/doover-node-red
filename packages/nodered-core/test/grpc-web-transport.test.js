@@ -93,6 +93,7 @@ test("gRPC-Web surfaces grpc-status trailer failures", async () => {
 class FakeGrpcWebClient {
   constructor() {
     this.aggregate = {};
+    this.messages = [];
     this.calls = [];
     this.streamHandlers = null;
     this.cancelled = false;
@@ -115,6 +116,13 @@ class FakeGrpcWebClient {
     }
     if (name === "SendOneShotMessage") {
       return { response_header: { success: true } };
+    }
+    if (name === "CreateMessage") {
+      this.messages.push({
+        channel: request.channel_name,
+        data: JSON.parse(request.data_json),
+      });
+      return { response_header: { success: true }, message_id: "123" };
     }
     throw new Error(`unexpected RPC ${name}`);
   }
@@ -147,6 +155,29 @@ test("local gRPC-Web transport connects, publishes JSON and reads it back", asyn
   assert.equal(write.request.return_aggregate, false);
   assert.deepEqual(await transport.getAggregate("state"), { count: 42 });
   await transport.close();
+});
+
+test("local gRPC-Web createMessage appends a message without changing the aggregate", async () => {
+  const client = new FakeGrpcWebClient();
+  client.aggregate = { current: true };
+  const transport = new GrpcWebTransport({ client, appKey: "app-1" });
+
+  const id = await transport.createMessage("notifications", {
+    message: "Pump stopped",
+  });
+
+  assert.equal(id, "123");
+  assert.deepEqual(client.messages, [
+    {
+      channel: "notifications",
+      data: { message: "Pump stopped" },
+    },
+  ]);
+  assert.deepEqual(client.aggregate, { current: true });
+  assert.equal(
+    client.calls.some((call) => call.name === "UpdateAggregate"),
+    false
+  );
 });
 
 test("local gRPC-Web subscription seeds first and then emits full aggregates", async () => {

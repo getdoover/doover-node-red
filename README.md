@@ -119,7 +119,7 @@ See `PLAN.md` §2 for the transport contract and §3 for the full node catalogue
 
 The palette currently ships the messaging nodes only — **doover tag in / get /
 out**, **doover channel in / out**, **doover aggregate get**, and **doover
-notify** — all of which work over either a local or a cloud connection. Platform
+message / notify** — all of which work over either a local or a cloud connection. Platform
 I/O and UI nodes are later phases (`PLAN.md` §3) and are not in the palette yet.
 
 ---
@@ -129,7 +129,7 @@ I/O and UI nodes are later phases (`PLAN.md` §3) and are not in the palette yet
 | Package | Name | Purpose | Phase |
 |---------|------|---------|-------|
 | `packages/nodered-core` | `@doover/nodered-core` | Transport interface + Local/Cloud transports + tag layer. No Node-RED dependency. | 0 |
-| `packages/node-red-contrib-doover` | `node-red-contrib-doover` | The palette — tag / channel / aggregate / notify nodes today; UI + hardware nodes later. Unscoped name for Palette-Manager discoverability. | 1+ |
+| `packages/node-red-contrib-doover` | `node-red-contrib-doover` | The palette — tag, channel, aggregate, message, and notify nodes today; UI + hardware nodes later. Unscoped name for Palette-Manager discoverability. | 1+ |
 | `packages/node-red-auth-doover` | `@doover/node-red-auth` | Node-RED adminAuth (Passport) strategy validating Doover credentials. | 2 |
 | `packages/node-red-theme-doover` | `@doover/node-red-theme-doover` | Doover editor theme. | 2 |
 | `packages/node-red-storage-doover` | `@doover/node-red-storage` | Channel-backed flow storage module (flows-as-config, fleet distribution). | 3 |

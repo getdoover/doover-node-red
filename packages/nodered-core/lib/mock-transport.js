@@ -58,6 +58,7 @@ class MockTransport extends DooverTransport {
   }
 
   async createMessage(channel, payload) {
+    validatePayload(payload);
     const id = String(this.messages.length + 1);
     this.messages.push({ id, channel, payload: clone(payload) });
     this._dispatch(channel, { channel, event: "message", payload: clone(payload), messageId: id });

@@ -85,8 +85,8 @@
 
 <script type="text/html" data-help-name="doover-notify">
   <p>Sends a notification through Doover's notification system.</p>
-  <p>Publishes to the <code>notifications</code> channel and records the message
-    so it appears in the customer-site activity timeline.</p>
+  <p>Appends a message to the <code>notifications</code> channel. It does not
+    update the channel aggregate.</p>
   <h3>Inputs</h3>
   <dl class="message-properties">
     <dt>payload <span class="property-type">any</span></dt>
@@ -107,7 +107,8 @@
     <li><b>Message, title, topic, and severity</b> can each read a message
       property, use a fixed string or environment variable, or evaluate a
       JSONata expression.</li>
-    <li><b>Also record an activity-log entry</b> additionally writes the same
-      text to the <code>activity_logs</code> channel as an action.</li>
+    <li><b>Also record an activity-log entry</b> additionally appends the same
+      text to the <code>activity_logs</code> channel as an action. This also
+      leaves that channel's aggregate unchanged.</li>
   </ul>
 </script>

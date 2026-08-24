@@ -2,9 +2,10 @@
 /*
  * doover-notify — Doover notification node.
  *
- * Publishes to the modern `notifications` channel. Message, title, topic, and
- * severity are independent Node-RED typed inputs. Existing nodes and new nodes
- * default to msg.payload, msg.title, msg.topic, and msg.severity respectively.
+ * Appends a message to the modern `notifications` channel without changing its
+ * aggregate. Message, title, topic, and severity are independent Node-RED typed
+ * inputs. Existing nodes and new nodes default to msg.payload, msg.title,
+ * msg.topic, and msg.severity respectively.
  *
  * Optionally records the message on the customer site's `activity_logs`
  * timeline channel as `{ "message": <text>, "type": "action" }`.
@@ -235,17 +236,12 @@ module.exports = function (RED) {
           config
         );
 
-        await transport.publish(
-          NOTIFICATIONS_CHANNEL,
-          notification,
-          { recordLog: true }
-        );
+        await transport.createMessage(NOTIFICATIONS_CHANNEL, notification);
 
         if (recordActivity) {
-          await transport.publish(
+          await transport.createMessage(
             ACTIVITY_LOGS_CHANNEL,
-            { message: notification.message, type: "action" },
-            { recordLog: true }
+            { message: notification.message, type: "action" }
           );
         }
 

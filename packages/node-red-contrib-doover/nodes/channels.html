@@ -1,6 +1,7 @@
 <!--
   Channel nodes editor templates: doover-channel-in, doover-channel-out,
-  doover-aggregate-get. One branded "Doover" category, one colour (#4B9CD3).
+  doover-message, doover-aggregate-get. One branded "Doover" category, one
+  colour (#4B9CD3).
 -->
 
 <!-- ===================== doover channel in ===================== -->
@@ -166,6 +167,67 @@
     <dt>One-shot</dt>
     <dd>Deliver to live subscribers without merging into the persisted aggregate (for high-rate values).</dd>
   </dl>
+</script>
+
+<!-- ===================== doover message ===================== -->
+<script type="text/javascript">
+  RED.nodes.registerType("doover-message", {
+    category: "Doover",
+    color: "#4B9CD3",
+    defaults: {
+      name: { value: "" },
+      connection: {
+        value: "",
+        type: "doover-connection",
+        required: true,
+      },
+      channel: { value: "" },
+    },
+    inputs: 1,
+    outputs: 0,
+    align: "right",
+    icon: "font-awesome/fa-envelope",
+    paletteLabel: "message",
+    label: function () {
+      return this.name || this.channel || "doover message";
+    },
+    labelStyle: function () {
+      return this.name ? "node_label_italic" : "";
+    },
+  });
+</script>
+
+<script type="text/html" data-template-name="doover-message">
+  <div class="form-row">
+    <label for="node-input-connection"><i class="fa fa-plug"></i> Connection</label>
+    <input type="text" id="node-input-connection" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-channel"><i class="fa fa-hashtag"></i> Channel</label>
+    <input type="text" id="node-input-channel" placeholder="defaults to msg.topic" />
+  </div>
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name" />
+  </div>
+</script>
+
+<script type="text/html" data-help-name="doover-message">
+  <p>
+    Appends <code>msg.payload</code> as a persisted message on a Doover channel.
+    It does not update the channel aggregate.
+  </p>
+  <h3>Inputs</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>the JSON object to store as the message data</dd>
+    <dt>topic <span class="property-type">string</span></dt>
+    <dd>used as the channel name when the Channel field is left blank</dd>
+  </dl>
+  <p>
+    Use <code>doover channel out</code> for mutable current state. Use its
+    one-shot option for live data that should not be stored.
+  </p>
 </script>
 
 <!-- ===================== doover aggregate get ===================== -->

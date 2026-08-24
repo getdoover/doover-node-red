@@ -135,6 +135,7 @@ predictably (configurable strict mode that errors instead of coercing).
 |------|-----------|
 | `doover channel in` | Subscribe to a named channel; emits each message. Option: emit aggregate on connect. Channel-name field with typeahead from existing channels. |
 | `doover channel out` | Publish `msg.payload`. Options: `record_log`, `max_age`, one-shot mode. |
+| `doover message` | Append `msg.payload` as a persisted channel message without changing the aggregate. |
 | `doover aggregate get` | Mid-flow: fetch a channel's aggregate into `msg.payload`. |
 
 These are the foundation — the tag layer, UI nodes, and notify node are all
@@ -144,7 +145,7 @@ built on them internally.
 
 | Node | Behaviour |
 |------|-----------|
-| `doover notify` | Publishes to `notifications` for timeline and subscribed push/email/SMS delivery. Separate typed inputs default to `msg.payload`, `msg.title`, `msg.topic`, and `msg.severity`; option to also record an `activity_logs` entry. |
+| `doover notify` | Appends a message to `notifications` for timeline and subscribed push/email/SMS delivery without changing the aggregate. Separate typed inputs default to `msg.payload`, `msg.title`, `msg.topic`, and `msg.severity`; option to also append an `activity_logs` message. |
 | `doover activity` | Records an activity-log entry without notifying. |
 
 ### 3.4 Doover UI nodes
