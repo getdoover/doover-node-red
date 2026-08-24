@@ -22,7 +22,7 @@
  *   (a) every examples/*.json deploys with zero error-status nodes.
  *   (b) a tag write reaches the fake server with correct <app>/<tag> namespacing,
  *       AND a tag-in subscriber fires on an injected aggregate update.
- *   (c) doover-notify lands as {"notification_msg": ...} on significantEvent.
+ *   (c) doover-notify lands as {"message": ...} on notifications.
  *   (d) 10x redeploy of one flow: no duplicate deliveries, no WSS-connection or
  *       subscription growth.
  *   (e) kill + restart the fake server: nodes return to green and a subsequent
@@ -84,7 +84,7 @@ async function waitStable(cond, opts) {
 
 const APP_KEY = "e2e_app";
 const TAG_CHANNEL = "tag_values";
-const SIGNIFICANT_EVENT = "significantEvent";
+const NOTIFICATIONS_CHANNEL = "notifications";
 const EXAMPLES_DIR = path.resolve(__dirname, "../../../../examples");
 
 const DOOVER_CONSUMER_TYPES = new Set([
@@ -430,7 +430,7 @@ async function scenarioTagRoundTrip(ctx) {
 }
 
 /**
- * (c) notify -> significantEvent {notification_msg}.
+ * (c) notify -> notifications {message}.
  * @param {{nr:NodeRedHarness, fake:ReturnType<typeof makeFakeAdapter>}} ctx
  */
 async function scenarioNotify(ctx) {
@@ -451,16 +451,16 @@ async function scenarioNotify(ctx) {
   await nr.triggerInject(inj);
   const write = await waitFor(
     () => {
-      const ws = fake.getWrites(SIGNIFICANT_EVENT);
-      return ws.find((w) => w.body && "notification_msg" in w.body);
+      const ws = fake.getWrites(NOTIFICATIONS_CHANNEL);
+      return ws.find((w) => w.body && "message" in w.body);
     },
-    { timeoutMs: 15000, description: "notify write to reach significantEvent" }
+    { timeoutMs: 15000, description: "notify write to reach notifications" }
   );
   assert(
-    write.body.notification_msg === "hello e2e",
+    write.body.message === "hello e2e",
     `notify payload wrong: ${JSON.stringify(write.body)}`
   );
-  return `notify landed as {"notification_msg":"hello e2e"} on significantEvent`;
+  return `notify landed as {"message":"hello e2e"} on notifications`;
 }
 
 /**
@@ -603,7 +603,7 @@ async function scenarioKillRestart(ctx) {
 const SCENARIOS = [
   { key: "a", name: "examples deploy clean", timeoutMs: 120000, fn: scenarioExamplesDeploy },
   { key: "b", name: "tag write namespacing + tag-in delivery", timeoutMs: 60000, fn: scenarioTagRoundTrip },
-  { key: "c", name: "notify -> significantEvent", timeoutMs: 45000, fn: scenarioNotify },
+  { key: "c", name: "notify -> notifications", timeoutMs: 45000, fn: scenarioNotify },
   { key: "d", name: "10x redeploy: no dup / no leak", timeoutMs: 120000, fn: scenarioRedeploy },
   { key: "e", name: "kill + restart recovery", timeoutMs: 90000, fn: scenarioKillRestart },
 ];

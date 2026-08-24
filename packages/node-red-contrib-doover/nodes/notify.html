@@ -1,5 +1,5 @@
 <!--
-  doover-notify — editor template.
+  doover-notify editor template.
 
   Category "Doover", brand colour, bell icon. Connection selector plus an
   "also record an activity-log entry" option.
@@ -46,19 +46,23 @@
 </script>
 
 <script type="text/html" data-help-name="doover-notify">
-  <p>Sends a user notification / alert banner in the Doover UI.</p>
-  <p>Publishes <code>msg.payload</code> (as text) to the
-    <code>significantEvent</code> channel as
-    <code>{ "notification_msg": &lt;text&gt; }</code>.</p>
+  <p>Sends a notification through Doover's notification system.</p>
+  <p>Publishes to the <code>notifications</code> channel and records the message
+    so it appears in the customer-site activity timeline.</p>
   <h3>Inputs</h3>
   <dl class="message-properties">
-    <dt>payload <span class="property-type">string</span></dt>
-    <dd>the notification message text (non-strings are stringified).</dd>
+    <dt>payload <span class="property-type">string | object</span></dt>
+    <dd>
+      The notification text. Non-string values are stringified. To include
+      notification metadata, pass an object with <code>message</code> and
+      optional <code>title</code>, <code>topic</code>, and <code>severity</code>
+      fields. Severity accepts <code>Trace</code>, <code>Debug</code>,
+      <code>Info</code>, <code>Warn</code>, or <code>Critical</code>.
+    </dd>
   </dl>
   <h3>Options</h3>
   <ul>
-    <li><b>Also record an activity-log entry</b> — additionally writes the same
-      text to the <code>activity_log</code> channel as
-      <code>{ "action_string": &lt;text&gt; }</code>.</li>
+    <li><b>Also record an activity-log entry</b> additionally writes the same
+      text to the <code>activity_logs</code> channel as an action.</li>
   </ul>
 </script>

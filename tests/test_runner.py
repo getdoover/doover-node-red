@@ -12,6 +12,7 @@ import asyncio
 import os
 import signal
 import stat
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -304,6 +305,27 @@ async def test_restart_sets_deliberate_flag(tmp_path):
 
 
 # --- supervised-mode application lifecycle ----------------------------------
+
+
+@pytest.mark.asyncio
+async def test_open_editor_notice_uses_modern_notifications_channel():
+    from doover_node_red.application import NodeRedApplication
+
+    app = NodeRedApplication()
+    app.create_message = AsyncMock()
+    ctx = AsyncMock()
+
+    await app.on_open_editor(ctx, None)
+
+    app.create_message.assert_awaited_once_with(
+        "notifications",
+        {
+            "message": "Open Editor is not implemented yet — coming in a later phase.",
+            "topic": "dev/applications/default/node-red/open-editor",
+            "severity": "Info",
+        },
+    )
+    ctx.set_value.assert_awaited_once_with(None)
 
 
 @pytest.mark.asyncio

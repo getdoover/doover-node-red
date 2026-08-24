@@ -191,14 +191,13 @@ class NodeRedApplication(Application):
         """Stub for the editor tunnel. Publishes a not-yet-implemented notice."""
         log.info("Open Editor pressed; tunnel not yet implemented.")
         await self.create_message(
-            "significantEvent",
-            # The platform notification banner reads `notification_msg` (matches the
-            # doover-notify node and pydoover's send_notification payload shape);
-            # any other key renders no banner.
+            "notifications",
             {
-                "notification_msg": (
+                "message": (
                     "Open Editor is not implemented yet — coming in a later phase."
-                )
+                ),
+                "topic": "dev/applications/default/node-red/open-editor",
+                "severity": "Info",
             },
         )
         await ctx.set_value(None)

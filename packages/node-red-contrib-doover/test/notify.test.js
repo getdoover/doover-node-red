@@ -73,7 +73,7 @@ describe("doover notify node", () => {
     assert.equal(helper.getNode("n1").type, "doover-notify");
   });
 
-  it("publishes payload text to significantEvent as { notification_msg }", async () => {
+  it("publishes payload text to the notifications channel", async () => {
     await load([
       { id: "n1", type: "doover-notify", connection: "c1", wires: [["n2"]] },
       { id: "n2", type: "helper" },
@@ -85,15 +85,16 @@ describe("doover notify node", () => {
     helper.getNode("n1").receive({ payload: "High temperature detected!" });
     await got; // pass-through
 
-    const sig = transport.publishes.find((p) => p.channel === "significantEvent");
-    assert.ok(sig, "published to significantEvent");
-    assert.deepEqual(sig.payload, {
-      notification_msg: "High temperature detected!",
+    const notification = transport.publishes.find(
+      (p) => p.channel === "notifications"
+    );
+    assert.ok(notification, "published to notifications");
+    assert.deepEqual(notification.payload, {
+      message: "High temperature detected!",
     });
-    assert.equal(sig.opts.recordLog, true);
-    assert.equal(sig.opts.maxAge, 1);
+    assert.deepEqual(notification.opts, { recordLog: true });
     // No activity log entry unless the option is enabled.
-    assert.ok(!transport.publishes.some((p) => p.channel === "activity_log"));
+    assert.ok(!transport.publishes.some((p) => p.channel === "activity_logs"));
   });
 
   it("stringifies non-string payloads", async () => {
@@ -101,11 +102,51 @@ describe("doover notify node", () => {
     const transport = helper.getNode("c1").getTransport();
     helper.getNode("n1").receive({ payload: { code: 5 } });
     await new Promise((r) => setTimeout(r, 20));
-    const sig = transport.publishes.find((p) => p.channel === "significantEvent");
-    assert.deepEqual(sig.payload, { notification_msg: '{"code":5}' });
+    const notification = transport.publishes.find(
+      (p) => p.channel === "notifications"
+    );
+    assert.deepEqual(notification.payload, { message: '{"code":5}' });
   });
 
-  it("also records an activity_log entry when enabled", async () => {
+  it("publishes a structured modern notification payload", async () => {
+    await load([{ id: "n1", type: "doover-notify", connection: "c1" }, CONN]);
+    const transport = helper.getNode("c1").getTransport();
+    helper.getNode("n1").receive({
+      payload: {
+        message: "Pump pressure is high",
+        title: "Pump alarm",
+        topic: "dev/applications/default/node-red/pump-pressure",
+        severity: "warn",
+        ignored: true,
+      },
+    });
+    await new Promise((r) => setTimeout(r, 20));
+
+    const notification = transport.publishes.find(
+      (p) => p.channel === "notifications"
+    );
+    assert.deepEqual(notification.payload, {
+      message: "Pump pressure is high",
+      title: "Pump alarm",
+      topic: "dev/applications/default/node-red/pump-pressure",
+      severity: "Warn",
+    });
+  });
+
+  it("rejects invalid structured notification metadata", async () => {
+    await load([{ id: "n1", type: "doover-notify", connection: "c1" }, CONN]);
+    const transport = helper.getNode("c1").getTransport();
+    const n1 = helper.getNode("n1");
+    const error = new Promise((resolve) => n1.once("call:error", resolve));
+
+    n1.receive({ payload: { message: "bad", severity: "emergency" } });
+    const call = await error;
+
+    assert.match(call.args[0].message, /notification severity must be/);
+    assert.equal(transport.publishes.length, 0);
+  });
+
+  it("also records an activity_logs entry when enabled", async () => {
     await load([
       {
         id: "n1",
@@ -119,9 +160,9 @@ describe("doover notify node", () => {
     helper.getNode("n1").receive({ payload: "Pump started" });
     await new Promise((r) => setTimeout(r, 20));
 
-    const act = transport.publishes.find((p) => p.channel === "activity_log");
-    assert.ok(act, "published to activity_log");
-    assert.deepEqual(act.payload, { action_string: "Pump started" });
+    const act = transport.publishes.find((p) => p.channel === "activity_logs");
+    assert.ok(act, "published to activity_logs");
+    assert.deepEqual(act.payload, { message: "Pump started", type: "action" });
     assert.equal(act.opts.recordLog, true);
   });
 

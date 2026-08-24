@@ -200,8 +200,8 @@ simplest for us.
   persisted message (this is `create_message` / `CreateMessage`). `body` is
   `CreateMessageRequest | FormData`. To record it in history set
   `record_log: true` on the message body (`MessageStructure.record_log`,
-  `types/common.ts:38`). Used for the `notify` / `significantEvent` / activity-log
-  nodes.
+  `types/common.ts:38`). Used for the `notify` and activity-log writes to the
+  `notifications` and `activity_logs` channels.
 - `listMessages(agentId, channelName, {before?, after?, limit=10, order="desc"}?): Promise<MessageStructure[]>`
   — cursor windowed by snowflake id; `order:"asc"` reverses client-side
   (`messages-api.ts:44-56`).

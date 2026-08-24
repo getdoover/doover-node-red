@@ -1,13 +1,14 @@
 "use strict";
 /*
- * doover-notify — user notification / alert node.
+ * doover-notify — Doover notification node.
  *
- * Publishes msg.payload text to the `significantEvent` channel as
- * `{ "notification_msg": <text> }` (verified against pydoover
- * `ui/manager.py::send_notification`, which publishes exactly that shape with
- * record_log=true, max_age=1). Optionally also records an activity-log entry on
- * the `activity_log` channel as `{ "action_string": <text> }` (mirrors
- * pydoover `record_activity_async`).
+ * Publishes msg.payload to the modern `notifications` channel. Scalar and
+ * unrecognised object payloads become `{ "message": <text> }`. A payload with a
+ * `message` property may also provide the notification system's optional
+ * `title`, `topic`, and `severity` fields.
+ *
+ * Optionally records the message on the customer site's `activity_logs`
+ * timeline channel as `{ "message": <text>, "type": "action" }`.
  *
  * Works over whatever transport the referenced `doover-connection` exposes via
  * getTransport() — local gRPC on-device, cloud REST elsewhere.
@@ -15,8 +16,19 @@
 
 const { STATUS_DOTS, resolveConnection, statusForTransport } = require("../lib/shared");
 
-const SIGNIFICANT_EVENT_CHANNEL = "significantEvent";
-const ACTIVITY_LOG_CHANNEL = "activity_log";
+const NOTIFICATIONS_CHANNEL = "notifications";
+const ACTIVITY_LOGS_CHANNEL = "activity_logs";
+
+/** @typedef {"Trace" | "Debug" | "Info" | "Warn" | "Critical"} NotificationSeverity */
+/** @typedef {{message: string, title?: string, topic?: string, severity?: NotificationSeverity}} NotificationPayload */
+
+const NOTIFICATION_SEVERITIES = new Map([
+  ["trace", "Trace"],
+  ["debug", "Debug"],
+  ["info", "Info"],
+  ["warn", "Warn"],
+  ["critical", "Critical"],
+]);
 
 /**
  * Coerce an arbitrary payload to notification text.
@@ -38,6 +50,76 @@ function toText(payload) {
     }
   }
   return String(payload);
+}
+
+/**
+ * Read an optional string from a notification payload. Empty strings are
+ * omitted so Doover can apply its title and topic defaults.
+ * @param {Record<string, unknown>} payload
+ * @param {"title" | "topic"} field
+ * @returns {string | undefined}
+ */
+function optionalString(payload, field) {
+  const value = payload[field];
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new TypeError("notification " + field + " must be a string");
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+/**
+ * Normalise a severity value to the enum names accepted by doover-data.
+ * @param {unknown} value
+ * @returns {NotificationSeverity | undefined}
+ */
+function optionalSeverity(value) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new TypeError("notification severity must be a string");
+  }
+  const severity = NOTIFICATION_SEVERITIES.get(value.trim().toLowerCase());
+  if (!severity) {
+    throw new TypeError(
+      "notification severity must be Trace, Debug, Info, Warn, or Critical"
+    );
+  }
+  return severity;
+}
+
+/**
+ * Parse msg.payload at the Node-RED boundary into doover-data's notification
+ * channel contract.
+ * @param {unknown} payload
+ * @returns {NotificationPayload}
+ */
+function toNotification(payload) {
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    Array.isArray(payload) ||
+    !Object.prototype.hasOwnProperty.call(payload, "message")
+  ) {
+    return { message: toText(payload) };
+  }
+
+  /** @type {Record<string, unknown>} */
+  const input = payload;
+  /** @type {NotificationPayload} */
+  const notification = { message: toText(input.message) };
+  const title = optionalString(input, "title");
+  const topic = optionalString(input, "topic");
+  const severity = optionalSeverity(input.severity);
+
+  if (title !== undefined) notification.title = title;
+  if (topic !== undefined) notification.topic = topic;
+  if (severity !== undefined) notification.severity = severity;
+  return notification;
 }
 
 /** @param {import("node-red").NodeAPI} RED */
@@ -70,18 +152,18 @@ module.exports = function (RED) {
 
     node.on("input", async (msg, send, done) => {
       try {
-        const text = toText(msg.payload);
+        const notification = toNotification(msg.payload);
 
         await transport.publish(
-          SIGNIFICANT_EVENT_CHANNEL,
-          { notification_msg: text },
-          { recordLog: true, maxAge: 1 }
+          NOTIFICATIONS_CHANNEL,
+          notification,
+          { recordLog: true }
         );
 
         if (recordActivity) {
           await transport.publish(
-            ACTIVITY_LOG_CHANNEL,
-            { action_string: text },
+            ACTIVITY_LOGS_CHANNEL,
+            { message: notification.message, type: "action" },
             { recordLog: true }
           );
         }

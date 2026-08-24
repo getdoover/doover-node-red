@@ -144,7 +144,7 @@ built on them internally.
 
 | Node | Behaviour |
 |------|-----------|
-| `doover notify` | Publishes to `significantEvent` → user notification/alert banner. `msg.payload` = message text; option to also record an activity-log entry. Trivial to build, high demo value. |
+| `doover notify` | Publishes to `notifications` for timeline and subscribed push/email/SMS delivery. `msg.payload` is message text or a structured notification; option to also record an `activity_logs` entry. |
 | `doover activity` | Records an activity-log entry without notifying. |
 
 ### 3.4 Doover UI nodes
