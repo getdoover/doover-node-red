@@ -111,6 +111,7 @@ class LocalTransport extends DooverTransport {
   }
 
   async createMessage(channel, payload) {
+    validatePayload(payload);
     const response = await this._rpc("createMessage", {
       header: this._header(), channel_name: channel, data: jsToStruct(payload), timestamp: Date.now(),
     });

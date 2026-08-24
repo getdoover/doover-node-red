@@ -136,6 +136,21 @@ function makeFetch(state) {
       }
     }
 
+    // /agents/{id}/channels/{ch}/messages
+    const messageMatch = u.match(
+      /\/agents\/([^/]+)\/channels\/([^/]+)\/messages/
+    );
+    if (messageMatch && method === "POST") {
+      const ch = decodeURIComponent(messageMatch[2]);
+      return respond({
+        id: "987654321012345678",
+        author_id: state.agentId,
+        channel: { agent_id: state.agentId, name: ch },
+        data: bodyObj?.data,
+        attachments: [],
+      });
+    }
+
     // /agents/ list
     if (/\/agents\/?(\?|$)/.test(u)) {
       return respond({ agents: [{ id: state.agentId }] });
@@ -388,6 +403,33 @@ test("local: publish validates the payload before hitting the wire", async () =>
   await assert.rejects(() => t.publish("c", 42));
   assert.equal(
     state.calls.some((c) => c.method === "PATCH" || c.method === "PUT"),
+    false
+  );
+  await t.close();
+});
+
+test("local: createMessage posts message data without changing the aggregate", async () => {
+  const { t, state } = makeLocal({
+    aggregates: { notifications: { current: true } },
+  });
+
+  const id = await t.createMessage("notifications", {
+    message: "Pump stopped",
+  });
+
+  const call = state.calls.find(
+    (candidate) =>
+      candidate.method === "POST" && candidate.url.endsWith("/messages")
+  );
+  assert.equal(id, "987654321012345678");
+  assert.ok(call.url.includes("/agents/agent-xyz/channels/notifications/messages"));
+  assert.deepEqual(call.body, { data: { message: "Pump stopped" } });
+  assert.deepEqual(state.aggregates.notifications, { current: true });
+  assert.equal(
+    state.calls.some(
+      (candidate) =>
+        candidate.method === "PATCH" || candidate.method === "PUT"
+    ),
     false
   );
   await t.close();

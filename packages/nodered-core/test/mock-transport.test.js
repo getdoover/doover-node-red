@@ -55,6 +55,28 @@ test("sendOneShot delivers a oneshot event WITHOUT touching the aggregate", asyn
   assert.equal(await t.getAggregate("chan"), null);
 });
 
+test("createMessage persists a message WITHOUT touching the aggregate", async () => {
+  const t = new MockTransport({
+    autoConnect: true,
+    aggregates: { chan: { current: true } },
+  });
+  const events = [];
+  t.subscribe("chan", (msg) => events.push(msg));
+
+  const id = await t.createMessage("chan", { event: "started" });
+  await tick();
+
+  assert.equal(id, "1");
+  assert.deepEqual(t.messages, [
+    { id: "1", channel: "chan", payload: { event: "started" } },
+  ]);
+  assert.deepEqual(await t.getAggregate("chan"), { current: true });
+  assert.deepEqual(
+    events.find((event) => event.event === "message").payload,
+    { event: "started" }
+  );
+});
+
 test("subscriptions multiplex and unsubscribe independently", async () => {
   const t = new MockTransport({ autoConnect: true });
   const a = [];

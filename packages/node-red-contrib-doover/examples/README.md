@@ -23,7 +23,7 @@ The examples use the implemented runtime/editor registrations in `nodes/`.
 Node type strings (match `package.json` `node-red.nodes` keys — hyphenated):
 `doover-connection`, `doover-tag-in`, `doover-tag-get`, `doover-tag-out`,
 `doover-channel-in`, `doover-channel-out`, `doover-aggregate-get`,
-`doover-notify`.
+`doover-message`, `doover-notify`.
 
 Assumed properties per node:
 
@@ -35,10 +35,13 @@ Assumed properties per node:
 - **doover-channel-in**: `connection`, `channel`, `emitAggregateOnConnect`.
 - **doover-channel-out**: `connection`, `channel`, `recordLog`, `maxAge`,
   `oneShot`.
+- **doover-message**: `connection`, `channel`. It appends `msg.payload` as a
+  persisted message without changing the channel aggregate.
 - **doover-notify**: `connection`, `message`, `messageType`, `title`,
   `titleType`, `topic`, `topicType`, `severity`, `severityType`, and
   `recordActivity`. The four notification fields default to `msg.payload`,
-  `msg.title`, `msg.topic`, and `msg.severity`.
+  `msg.title`, `msg.topic`, and `msg.severity`. Notifications are persisted
+  messages and do not change the `notifications` aggregate.
 
 The `inject`, `switch`, `function`, `debug` and `http request` nodes are stock
 Node-RED core nodes and are stable.
