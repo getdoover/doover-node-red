@@ -5,7 +5,7 @@
         "type": "DEV",
         "visibility": "PUB",
         "allow_many": false,
-        "description": "Run the Node-RED flow runtime on a Doover device. Wire tags, channels, notifications and hardware I/O into Node-RED flows, and surface them in the Doover UI.",
+        "description": "Run the Node-RED flow runtime on a Doover device. Build automation logic in the visual editor and wire it straight into Doover tags, channels and notifications.",
         "long_description": "README.md",
         "icon_url": "https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/icon.png",
         "depends_on": [],

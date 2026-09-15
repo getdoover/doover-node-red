@@ -1,194 +1,80 @@
-# Doover × Node-RED
+# Node-RED on Doover
 
-<img src="https://doover.com/wp-content/uploads/Doover-Logo-Landscape-Navy-padded-small.png" alt="Doover" style="max-width: 300px;">
+Run the Node-RED flow editor and runtime on a Doovit, and wire its flows straight into Doover. Build logic by dragging nodes onto a canvas instead of writing code, and read or write Doover tags, channels and notifications from that same flow.
 
-**Node-RED as a first-class citizen of the Doover IoT platform** — a Doover
-device app that runs the Node-RED runtime on a Doovit, plus a family of Doover
-nodes (a palette package) that read and write Doover tags, channels,
-notifications and UI both **on a Doover device** and **anywhere else** (an
-existing Node-RED install talking to the Doover cloud).
-
-The design goal is end-customer ease of use: zero-config on a Doovit,
-pick-don't-type configuration (live dropdowns for tags/channels/agents land in
-Phase 2 — today the config fields are free-text), and a ten-minute path from
-"install the app" to "flow visible in the Doover UI".
-
-> 📋 The authoritative design is in **[`PLAN.md`](PLAN.md)** — product principles,
-> the full node list, phases, and open questions. This README is the orientation
-> map; `PLAN.md` is the source of truth.
+- **Build device logic visually.** Drag, wire and deploy — no build step, no code push, no app release.
+- **Talk to Doover from a flow.** Dedicated nodes read and write tags, publish and subscribe to channels, and raise Doover notifications.
+- **Work with the rest of the device.** Read tags published by the other apps on the same Doovit, or reach another device through the Doover cloud.
+- **Watch it from Doover.** Runtime state, last deploy time, memory use and restart count appear on the device page.
 
 ---
 
-## What's in this repo
+<img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/device-v3.png" alt="Device app — runs on edge hardware" width="96" height="96">
 
-This is a hybrid repo: a standard Doover Python device app **at the root** (so
-Doover app CI finds `Dockerfile` + `doover_config.json` where it expects them),
-with the JavaScript palette and transport packages living alongside it as npm
-workspaces.
+---
+
+## What you get
+
+Node-RED 4.0.9 (Node.js 22) running in its own container on the Doovit, with the Doover node palette already installed. Nothing to install in the editor, and no credentials to enter — nodes connect to the device's local Doover agent automatically.
+
+Flows are stored on the device in a persistent volume, so they survive restarts and app updates. Export a copy from the editor to keep a backup off the device.
+
+## The Doover palette
+
+All nodes appear under the **Doover** category in the editor's node list.
+
+| Node | Use it to |
+| --- | --- |
+| **doover tag in** | Emit a message whenever a tag changes |
+| **doover tag get** | Read a tag's current value into a message property |
+| **doover tag out** | Write a tag value, one at a time or a batch of tag/value pairs |
+| **doover channel in** | Subscribe to a channel and receive its messages |
+| **doover channel out** | Publish to a channel, merging into its aggregate |
+| **doover message** | Publish a one-shot channel message |
+| **doover aggregate get** | Read a channel's current aggregate |
+| **doover notify** | Send a Doover notification, optionally logging it as an activity entry |
+
+Every node points at a **doover-connection** config node, which sets where it talks to:
+
+- **This device (local)** — the default. Talks to the Doover agent on the same Doovit. No configuration needed.
+- **Doover Cloud** — talks to `api.doover.com`. Set the target **Agent** id and paste a scoped API **Token**, which is stored as a Node-RED credential.
+
+Tag nodes have a **Scope**: **This app** for the Node-RED app's own tags, **Another app** plus an **App key** to read a different app on the device, or **Global**.
+
+Four example flows ship with the app — open **Import → Examples → node-red-contrib-doover** in the editor to load a tag-to-notification, channel round-trip, cross-app tag read or HTTP-to-Doover flow.
+
+## Opening the editor
+
+Open the editor over the local network, at port 1880 on the device:
 
 ```
-doover-node-red/
-├── Dockerfile                    # FROM nodered/node-red + Doover conventions
-├── doover_config.json            # app definition, config schema, ui schema
-├── pyproject.toml                # supervisor (pydoover app)
-├── src/                          # supervisor: settings templating, tunnel, UI, health
-├── settings/                     # Node-RED settings.js template, theme wiring (TBD)
-├── packages/
-│   ├── nodered-core/             # @doover/nodered-core — transport + tag layer (no Node-RED dep)
-│   │   └── protos/               # vendored from pydoover/protos (sync script)
-│   ├── node-red-contrib-doover/  # the palette: nodes + editor HTML + examples
-│   ├── node-red-auth-doover/     # adminAuth Passport strategy        (Phase 2)
-│   ├── node-red-theme-doover/    # editor theme                        (Phase 2)
-│   └── node-red-storage-doover/  # channel-backed flow storage module  (Phase 3)
-├── examples/                     # importable example flows (mirrored into the palette pkg)
-├── docs/                         # this doc set (see docs/development.md, docs/reference/)
-└── .github/workflows/            # CI: lint, test, build multi-arch image, npm publish
+http://<doovit-ip-address>:1880
 ```
 
----
+**The editor has no login.** Anyone who can reach port 1880 on the device can deploy arbitrary flows to it. Only expose it on a trusted network, and turn **Editor Enabled** off on production devices — flows keep running, the editor simply is not served.
 
-## Architecture at a glance
+## Settings
 
-```
-                     ┌────────────────────────────────────────────┐
-                     │  Node-RED runtime (container / anywhere)    │
-  Palette nodes ────►│  node-red-contrib-doover                    │
-                     │        │                                    │
-                     │        ▼                                    │
-                     │  @doover/nodered-core  (transport layer)    │
-                     │   ├── GrpcWebTransport (HTTPS, on-device)         │
-                     │   └── DooverJsCloudTransport (REST+WSS, remote)   │
-                     └────────┬──────────────────────┬─────────────┘
-                              │                       │
-                 dda-agent gRPC-Web API            api.doover.com
-                 https://127.0.0.1:49100/grpc      (+ gateway WSS)
-```
+| Setting | What it does |
+| --- | --- |
+| **Editor Enabled** | Serve the flow editor. Turn off to lock down a production device; flows still run. |
+| **Extra Palette Packages** | npm package names to install at startup, e.g. `node-red-contrib-modbus`. These are also the only packages the editor's palette manager is allowed to install. Installs need connectivity and add boot time. |
+| **Flow Environment Variables** | Key/value pairs your flows read as `${VAR}` in node config — the place for per-device values such as a site name or a setpoint. |
+| **Memory Limit (MB)** | V8 heap cap, default 256. This bounds the JavaScript heap, not total process memory; the runtime typically uses 120–250 MB RSS. |
+| **Timezone** | IANA timezone (e.g. `Australia/Brisbane`) used by scheduling nodes. Defaults to UTC. |
 
-- **`@doover/nodered-core`** is a plain, Node-RED-independent library exposing one
-  `DooverTransport` interface. The shipped default on a Doovit is
-  **`GrpcWebTransport`** — the DDA protobuf API over its on-device HTTPS
-  **gRPC-Web** mount (default `https://127.0.0.1:49100/grpc`). It uses binary
-  protobuf framing for unary calls and channel-event streams. The remote path is
-  **`DooverJsCloudTransport`** (REST + WebSocket to the Doover cloud, reusing
-  `doover-js`). A legacy gRPC `LocalTransport` (port 50051, protos vendored from
-  pydoover) is retained and tested but **parked** — it is not the default. The
-  old doover-js local adapter is also retained for compatibility but is not
-  selected by the palette. A **tag
-  layer** rides on top of either transport — tags are a convenience over the
-  `tag_values` channel aggregate, exactly as in pydoover.
-- **`node-red-contrib-doover`** is the palette. Every message node references a
-  shared **`doover-connection`** config node (à la `mqtt-broker`); the *only*
-  difference between on-device and remote is which connection a node points at.
-  Same nodes everywhere.
-- The **device app** (repo root) is a normal Doover/pydoover app that wraps the
-  official `nodered/node-red` image, materialises `settings.js` from deployment
-  config, manages the editor tunnel, declares the app's Doover UI, and reports
-  runtime health as tags.
+## Getting started
 
-See `PLAN.md` §2 for the transport contract and §3 for the full node catalogue.
+1. Install the app on a Doovit and wait for **Runtime State** on the device page to read `running`.
+2. Open `http://<doovit-ip>:1880` from a machine on the same network.
+3. Drag a **doover tag in** node onto the canvas, pick a tag, wire it to a **doover notify** node and click **Deploy**.
+4. Check **Last Deploy** on the device page to confirm the deploy landed.
 
----
+## Licence and trademark
 
-## Quickstart
-
-### On a Doovit (the zero-config path)
-
-1. Install the **Node-RED for Doover** app onto a device from the Doover app store.
-   It runs the Node-RED runtime with the Doover palette pre-installed and a
-   zero-config local connection to the on-device agent.
-2. Open the Node-RED editor. The in-app **Open Editor** action is the intended
-   one-click path, but the on-device editor tunnel is still being built — today
-   the action posts a "coming in a later phase" notice (config field
-   `editor_access` is flagged EXPERIMENTAL). See `PLAN.md` Phase 2 for the tunnel.
-3. In the editor, drag a **doover tag in** node onto the canvas. The local
-   connection is auto-detected (agent id + app key read from the container env) —
-   no credentials, no endpoints. Wire it to a **doover notify** node and **Deploy**.
-4. The result is visible in the Doover UI. Try importing one of the
-   [`examples/`](examples) flows to go faster.
-
-### Standalone (an existing Node-RED install)
-
-1. In your own Node-RED, open **Manage palette → Install** and add
-   `node-red-contrib-doover` (once published).
-2. Add a **doover-connection** config node, set its type to **Doover Cloud**, set
-   the **API base** (default `https://api.doover.com`), type the **agent id** of
-   the target device into the Agent field, and paste a scoped **API token** (stored
-   as a Node-RED credential). The Agent field is free-text today; a live agent
-   picker is planned Phase-2 polish (`PLAN.md` §2.2).
-3. Your existing flows can now read and write Doover tags and channels.
-
-The palette currently ships the messaging nodes only — **doover tag in / get /
-out**, **doover channel in / out**, **doover aggregate get**, and **doover
-message / notify** — all of which work over either a local or a cloud connection. Platform
-I/O and UI nodes are later phases (`PLAN.md` §3) and are not in the palette yet.
-
----
-
-## Packages
-
-| Package | Name | Purpose | Phase |
-|---------|------|---------|-------|
-| `packages/nodered-core` | `@doover/nodered-core` | Transport interface + Local/Cloud transports + tag layer. No Node-RED dependency. | 0 |
-| `packages/node-red-contrib-doover` | `node-red-contrib-doover` | The palette — tag, channel, aggregate, message, and notify nodes today; UI + hardware nodes later. Unscoped name for Palette-Manager discoverability. | 1+ |
-| `packages/node-red-auth-doover` | `@doover/node-red-auth` | Node-RED adminAuth (Passport) strategy validating Doover credentials. | 2 |
-| `packages/node-red-theme-doover` | `@doover/node-red-theme-doover` | Doover editor theme. | 2 |
-| `packages/node-red-storage-doover` | `@doover/node-red-storage` | Channel-backed flow storage module (flows-as-config, fleet distribution). | 3 |
-| *(repo root)* | `app-template` → *Node-RED for Doover* | The pydoover supervisor + Dockerfile + Doover app config. | 1+ |
-
-The example flows are shipped **twice**: in
-[`packages/node-red-contrib-doover/examples/`](packages/node-red-contrib-doover/examples)
-(so they appear under Import → Examples in the editor) and mirrored at the repo
-root in [`examples/`](examples).
-
----
-
-## Development setup
-
-Two toolchains, one repo.
-
-**JavaScript (palette + core)** — Node.js 24, npm 11, npm **workspaces**. Plain
-CommonJS, no TypeScript, no build step (JSDoc for types).
-
-```bash
-npm install            # installs all workspaces + dev deps
-npm test               # runs each workspace's tests (node --test / test-helper)
-```
-
-**Python (device app supervisor)** — [uv](https://docs.astral.sh/uv/) + pydoover 1.0.
-
-```bash
-uv run pytest tests -v          # run the Python test suite
-uv run export-config            # regenerate config_schema in doover_config.json
-uv run export-ui                # regenerate ui_schema (required to publish)
-doover app run                  # run the app + simulator locally via docker-compose
-```
-
-The full dev loop — running Node-RED locally with the palette linked, testing
-nodes, and the simulator story — is in **[`docs/development.md`](docs/development.md)**.
-Reference material for implementers is in
-[`docs/reference/`](docs/reference) (Node-RED node conventions, the gRPC contract,
-and the tags contract).
-
----
-
-## Licence
-
-The device app at the repo root carries the standard Doover app-template
-**Apache License 2.0** ([`LICENSE`](LICENSE)). The JavaScript workspace packages
-declare **MIT** in their `package.json` (per `PLAN.md` §7 and the node-authoring
-conventions — the common choice for a publishable Node-RED palette). This split is
-intentional; keep new package `license` fields consistent with the package they
-live in.
-
-> **Node-RED** is a trademark of the **OpenJS Foundation**. This project embeds and
-> integrates with Node-RED but is not endorsed by or affiliated with the OpenJS
-> Foundation. App-store and package naming follows the safe "*<X> for Node-RED*" /
-> "*Node-RED for <X>*" pattern; see `PLAN.md` §9 (open question 5).
-
----
+The device app is Apache 2.0; the JavaScript palette packages are MIT. Node-RED is a trademark of the OpenJS Foundation — this app embeds and integrates with Node-RED but is not endorsed by or affiliated with the OpenJS Foundation.
 
 ## Need help?
 
-- 📧 hello@doover.com
-- 📖 [Doover Documentation](https://docs.doover.com)
-- 📋 [`PLAN.md`](PLAN.md) — the project plan and open questions
+- hello@doover.com
+- [Doover Documentation](https://docs.doover.com)
