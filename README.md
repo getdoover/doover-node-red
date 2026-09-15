@@ -5,9 +5,9 @@ Run the Node-RED flow editor and runtime on a Doovit, and wire its flows straigh
 ---
 
 <p align="left">
-  <img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/device-v3.png" alt="" width="96" height="96"><br>
-  <strong>Device</strong><br>
-  Runs on edge hardware
+  <img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/app-type-device-coloured.png" alt="App Type: Device — Runs on edge hardware" align="left" width="150" height="240">
+  <img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/ui-interface-coloured.png" alt="UI: Interface — Has a User Interface" align="left" width="240" height="240">
+  <br clear="all">
 </p>
 
 ---
