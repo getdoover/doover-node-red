@@ -2,17 +2,6 @@
 
 Run the Node-RED flow editor and runtime on a Doovit, and wire its flows straight into Doover. Build logic by dragging nodes onto a canvas instead of writing code, and read or write Doover tags, channels and notifications from that same flow.
 
----
-
-<p align="left">
-  <img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/app-type-device-coloured.png?v=cf880f3d16a5" alt="App Type: Device — Runs on edge hardware" align="left" width="180" height="180">
-  <img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/ui-interface-coloured.png?v=f52f45b2e686" alt="UI: Interface — Has a User Interface" align="left" width="180" height="180">
-  <img src="https://raw.githubusercontent.com/getdoover/doover-node-red/main/assets/app-types/badge-external-runtime-coloured.png?v=4d38cee9c90b" alt="External Runtime — Installs an external runtime" align="left" width="180" height="180">
-  <br clear="all">
-</p>
-
----
-
 - **Build device logic visually.** Drag, wire and deploy — no build step, no code push, no app release.
 - **Talk to Doover from a flow.** Dedicated nodes read and write tags, publish and subscribe to channels, and raise Doover notifications.
 - **Work with the rest of the device.** Read tags published by the other apps on the same Doovit, or reach another device through the Doover cloud.
